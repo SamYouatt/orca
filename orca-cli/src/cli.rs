@@ -15,6 +15,8 @@ pub enum Commands {
     },
     /// Lists all workspaces
     Ls,
+    /// Show workspace status with git and GitHub info
+    Status,
     /// Remove a workspace
     Rm {
         /// Name of the workspace to remove

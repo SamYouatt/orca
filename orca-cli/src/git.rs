@@ -62,6 +62,43 @@ pub fn worktree_branch(worktree_path: &Path) -> String {
         .unwrap_or_else(|| "unknown".to_string())
 }
 
+pub fn ahead_behind(worktree_path: &Path) -> Option<(u32, u32)> {
+    let output = Command::new("git")
+        .args([
+            "-C",
+            &worktree_path.display().to_string(),
+            "rev-list",
+            "--left-right",
+            "--count",
+            "HEAD...@{upstream}",
+        ])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())?;
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let parts: Vec<&str> = text.trim().split('\t').collect();
+    if parts.len() == 2 {
+        Some((parts[0].parse().ok()?, parts[1].parse().ok()?))
+    } else {
+        None
+    }
+}
+
+pub fn has_uncommitted_changes(worktree_path: &Path) -> bool {
+    Command::new("git")
+        .args([
+            "-C",
+            &worktree_path.display().to_string(),
+            "status",
+            "--porcelain",
+        ])
+        .output()
+        .ok()
+        .map(|o| !o.stdout.is_empty())
+        .unwrap_or(false)
+}
+
 pub fn remove_worktree(repo: &Path, worktree_path: &Path) -> Result<()> {
     let output = Command::new("git")
         .args([
