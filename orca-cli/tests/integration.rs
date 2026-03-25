@@ -1,5 +1,6 @@
 use std::process::Command;
 
+use serial_test::serial;
 use tempfile::tempdir;
 
 use orca::{commands, workspace};
@@ -28,6 +29,7 @@ fn git_branches(repo: &std::path::Path) -> String {
 }
 
 #[test]
+#[serial]
 fn test_full_lifecycle() {
     let repo_dir = setup_test_repo();
     let orca_dir = tempdir().unwrap();
@@ -44,7 +46,10 @@ fn test_full_lifecycle() {
     let expected_worktree = workspace::worktree_path(orca_dir.path(), name);
     assert!(expected_worktree.exists());
     assert!(workspace::exists(orca_dir.path(), name));
-    assert_eq!(config.repo, repo_dir.path().canonicalize().unwrap());
+    assert_eq!(
+        config.repo.canonicalize().unwrap(),
+        repo_dir.path().canonicalize().unwrap()
+    );
 
     let branches = git_branches(repo_dir.path());
     assert!(branches.contains(name.as_str()));
@@ -59,6 +64,7 @@ fn test_full_lifecycle() {
 }
 
 #[test]
+#[serial]
 fn test_rm_with_missing_worktree() {
     let repo_dir = setup_test_repo();
     let orca_dir = tempdir().unwrap();
@@ -106,6 +112,7 @@ fn test_name_collision() {
 }
 
 #[test]
+#[serial]
 fn test_new_outside_git_repo() {
     let not_a_repo = tempdir().unwrap();
     let orca_dir = tempdir().unwrap();

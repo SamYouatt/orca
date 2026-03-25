@@ -39,26 +39,40 @@ pub fn ls(base_dir: &Path) -> Result<()> {
         return Ok(());
     }
 
-    let name_width = workspaces
+    let entries: Vec<_> = workspaces
         .iter()
-        .map(|(n, _)| n.len())
+        .map(|(name, config)| {
+            let worktree_path = workspace::worktree_path(base_dir, name);
+            let repo_name = git::repo_name(&config.repo);
+            let branch = git::worktree_branch(&worktree_path);
+            let repo_branch = format!("{}/{}", repo_name, branch);
+            (name, repo_branch, config)
+        })
+        .collect();
+
+    let name_width = entries
+        .iter()
+        .map(|(n, _, _)| n.len())
         .max()
         .unwrap()
         .max(4);
-    let repo_width = workspaces
+    let rb_width = entries
         .iter()
-        .map(|(_, c)| c.repo.display().to_string().len())
+        .map(|(_, rb, _)| rb.len())
         .max()
         .unwrap()
-        .max(4);
+        .max(11);
 
-    println!("{:<name_width$}  {:<repo_width$}  CREATED", "NAME", "REPO",);
+    println!(
+        "{:<name_width$}  {:<rb_width$}  CREATED",
+        "NAME", "REPO/BRANCH"
+    );
 
-    for (name, config) in &workspaces {
+    for (name, repo_branch, config) in &entries {
         println!(
-            "{:<name_width$}  {:<repo_width$}  {}",
+            "{:<name_width$}  {:<rb_width$}  {}",
             name,
-            config.repo.display(),
+            repo_branch,
             config.created.format("%Y-%m-%d %H:%M"),
         );
     }

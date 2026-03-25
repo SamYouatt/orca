@@ -39,6 +39,29 @@ pub fn create_worktree(repo: &Path, worktree_path: &Path, branch: &str) -> Resul
     Ok(())
 }
 
+pub fn repo_name(repo: &Path) -> String {
+    repo.file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string()
+}
+
+pub fn worktree_branch(worktree_path: &Path) -> String {
+    Command::new("git")
+        .args([
+            "-C",
+            &worktree_path.display().to_string(),
+            "rev-parse",
+            "--abbrev-ref",
+            "HEAD",
+        ])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
 pub fn remove_worktree(repo: &Path, worktree_path: &Path) -> Result<()> {
     let output = Command::new("git")
         .args([
