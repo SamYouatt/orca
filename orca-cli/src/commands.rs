@@ -25,9 +25,10 @@ pub fn new(base_dir: &Path, branch: Option<&str>) -> Result<()> {
     workspace::save(base_dir, &name, &config)?;
 
     println!(
-        "created workspace '{}' at {}",
-        name,
-        worktree_path.display()
+        "Created workspace {} on branch {} at {}",
+        theme::blue_bold(&name),
+        theme::purple(branch),
+        theme::blue(&worktree_path.display().to_string())
     );
     Ok(())
 }
@@ -75,7 +76,7 @@ pub fn ls(base_dir: &Path) -> Result<()> {
             " {:<name_width$}  {:<rb_width$}  {}",
             name,
             repo_branch,
-            config.created.format("%Y-%m-%d %H:%M"),
+            theme::grey(&format!("{}", config.created.format("%Y-%m-%d %H:%M"))),
         );
     }
 
@@ -169,7 +170,7 @@ pub fn status(base_dir: &Path) -> Result<()> {
 
     let gh_available = github::is_available();
     if !gh_available {
-        eprintln!("install gh for PR details");
+        eprintln!("Install gh for PR details");
     }
 
     let entries: Vec<WorkspaceStatus> = std::thread::scope(|s| {

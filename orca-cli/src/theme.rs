@@ -45,6 +45,10 @@ pub fn blue(s: &str) -> ColoredString {
     fg(s, &BLUE)
 }
 
+pub fn blue_bold(s: &str) -> ColoredString {
+    fg(s, &BLUE).bold()
+}
+
 pub fn teal(s: &str) -> ColoredString {
     fg(s, &TEAL)
 }
