@@ -15,4 +15,12 @@ A lot of the functionality is based around [Conductor](https://www.conductor.bui
 
 ## Features
 
-### Worktrees
+### Cli
+
+- `orca new`: Create a new workspace from the current repo and initialise a worktree
+- `orca ls`: List all active workspaces
+- `orca rm`: Remove a workspace
+
+### Workspaces
+
+Workspaces are created at `~/.orca/workspaces`
