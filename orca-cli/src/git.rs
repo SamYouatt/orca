@@ -85,6 +85,48 @@ pub fn ahead_behind(worktree_path: &Path) -> Option<(u32, u32)> {
     }
 }
 
+pub fn diff_stat(worktree_path: &Path) -> Option<(u32, u32)> {
+    let merge_base = Command::new("git")
+        .args([
+            "-C",
+            &worktree_path.display().to_string(),
+            "merge-base",
+            "HEAD",
+            "HEAD@{upstream}",
+        ])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())?;
+
+    let base = String::from_utf8_lossy(&merge_base.stdout)
+        .trim()
+        .to_string();
+
+    let output = Command::new("git")
+        .args([
+            "-C",
+            &worktree_path.display().to_string(),
+            "diff",
+            "--numstat",
+            &base,
+        ])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())?;
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let (mut added, mut removed) = (0u32, 0u32);
+    for line in text.lines() {
+        let parts: Vec<&str> = line.split('\t').collect();
+        if parts.len() >= 2 {
+            added += parts[0].parse::<u32>().unwrap_or(0);
+            removed += parts[1].parse::<u32>().unwrap_or(0);
+        }
+    }
+
+    Some((added, removed))
+}
+
 pub fn has_uncommitted_changes(worktree_path: &Path) -> bool {
     Command::new("git")
         .args([

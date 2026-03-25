@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::Utc;
 
 use crate::{
-    git, github, names,
+    git, github, names, theme,
     workspace::{self, WorkspaceConfig},
 };
 
@@ -64,14 +64,15 @@ pub fn ls(base_dir: &Path) -> Result<()> {
         .unwrap()
         .max(11);
 
-    println!(
-        "{:<name_width$}  {:<rb_width$}  CREATED",
-        "NAME", "REPO/BRANCH"
+    let header = format!(
+        " {:<name_width$}  {:<rb_width$}  {:<16} ",
+        "Name", "Repo/Branch", "Created"
     );
+    println!("{}", theme::header(&header));
 
     for (name, repo_branch, config) in &entries {
         println!(
-            "{:<name_width$}  {:<rb_width$}  {}",
+            " {:<name_width$}  {:<rb_width$}  {}",
             name,
             repo_branch,
             config.created.format("%Y-%m-%d %H:%M"),
@@ -83,6 +84,7 @@ pub fn ls(base_dir: &Path) -> Result<()> {
 
 struct WorkspaceStatus {
     name: String,
+    repo: String,
     icon: String,
     branch: String,
     status: String,
@@ -96,67 +98,61 @@ fn gather_workspace_status(
 ) -> WorkspaceStatus {
     let worktree_path = workspace::worktree_path(base_dir, name);
     let branch = git::worktree_branch(&worktree_path);
-    let dirty = git::has_uncommitted_changes(&worktree_path);
     let ab = git::ahead_behind(&worktree_path);
     let has_upstream = ab.is_some();
+    let diff = git::diff_stat(&worktree_path);
 
     let mut parts: Vec<String> = Vec::new();
 
-    match ab {
-        Some((0, 0)) => parts.push("clean".to_string()),
-        Some((ahead, behind)) => {
-            let mut s = String::new();
-            if ahead > 0 {
-                s.push_str(&format!("↑{}", ahead));
+    match diff {
+        Some((0, 0)) => parts.push(format!("{}", theme::green("clean"))),
+        Some((added, removed)) => {
+            if added > 0 {
+                parts.push(format!("{}", theme::green(&format!("+{}", added))));
             }
-            if behind > 0 {
-                if !s.is_empty() {
-                    s.push(' ');
-                }
-                s.push_str(&format!("↓{}", behind));
+            if removed > 0 {
+                parts.push(format!("{}", theme::red(&format!("-{}", removed))));
             }
-            parts.push(s);
         }
         None => {}
     }
 
-    if dirty {
-        parts.push("*".to_string());
-    }
-
-    let mut check_icon: Option<&str> = None;
+    let mut icon = if has_upstream {
+        format!("{}", theme::teal(""))
+    } else {
+        format!("{}", theme::grey(""))
+    };
 
     if gh_available {
         match github::pr_for_branch(&config.repo, &branch) {
             Ok(Some(pr)) => {
-                if let Some(checks) = &pr.check_status {
-                    check_icon = Some(match checks {
-                        github::CheckStatus::Passing => "󱓏",
-                        github::CheckStatus::Failing => "󱓌",
-                        github::CheckStatus::Pending => "󱓎",
-                    });
-                }
+                icon = format!(
+                    "{}",
+                    match &pr.check_status {
+                        Some(github::CheckStatus::Passing) => theme::green("󱓏"),
+                        Some(github::CheckStatus::Failing) => theme::red("󱓌"),
+                        Some(github::CheckStatus::Pending) => theme::yellow("󱓎"),
+                        None => theme::light_blue(""),
+                    }
+                );
                 let pr_str = if pr.state == "MERGED" {
-                    format!(" #{}", pr.number)
+                    format!("{}", theme::purple(&format!(" #{}", pr.number)))
                 } else {
-                    format!("PR #{}", pr.number)
+                    format!("{}", theme::purple(&format!("PR #{}", pr.number)))
                 };
                 parts.push(pr_str);
             }
             Ok(None) => {}
             Err(e) if !e.contains("no git remotes") => {
-                parts.push(format!("gh: {}", e));
+                parts.push(format!("{}", theme::red(&format!("gh: {}", e))));
             }
             Err(_) => {}
         }
     }
 
-    let icon = check_icon
-        .unwrap_or(if has_upstream { "\u{e0a0}" } else { " " })
-        .to_string();
-
     WorkspaceStatus {
         name: name.to_string(),
+        repo: git::repo_name(&config.repo),
         icon,
         branch,
         status: parts.join("  "),
@@ -183,18 +179,48 @@ pub fn status(base_dir: &Path) -> Result<()> {
                 s.spawn(|| gather_workspace_status(base_dir, name, config, gh_available))
             })
             .collect();
-        handles.into_iter().map(|h| h.join().unwrap()).collect()
+        let mut entries: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+        entries.sort_by(|a, b| a.repo.cmp(&b.repo));
+        entries
     });
 
-    let name_width = entries.iter().map(|e| e.name.len()).max().unwrap().max(4);
+    let name_width = entries.iter().map(|e| e.name.len()).max().unwrap().max(9);
+    let branch_width = entries
+        .iter()
+        .map(|e| e.branch.len() + 2)
+        .max()
+        .unwrap()
+        .max(6);
 
-    println!("Workspaces:\n");
+    let header = format!(
+        " {:<name_width$}  {:<branch_width$}  Status ",
+        "Workspace", "Branch"
+    );
+    println!("{}", theme::header(&header));
 
+    let mut grouped: Vec<(String, Vec<&WorkspaceStatus>)> = Vec::new();
     for entry in &entries {
-        println!(
-            "  {:<name_width$}    {} {}  {}",
-            entry.name, entry.icon, entry.branch, entry.status,
-        );
+        if let Some(group) = grouped.last_mut().filter(|(repo, _)| *repo == entry.repo) {
+            group.1.push(entry);
+        } else {
+            grouped.push((entry.repo.clone(), vec![entry]));
+        }
+    }
+
+    for (i, (repo, group)) in grouped.iter().enumerate() {
+        if i > 0 {
+            println!();
+        }
+        println!(" {}", theme::blue(repo));
+        for entry in group {
+            println!(
+                " {}  {} {}  {}",
+                format!("{:<name_width$}", entry.name),
+                entry.icon,
+                format!("{:<w$}", entry.branch, w = branch_width - 2),
+                entry.status,
+            );
+        }
     }
 
     Ok(())
