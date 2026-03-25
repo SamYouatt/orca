@@ -15,7 +15,7 @@ fn main() -> anyhow::Result<()> {
         cli::Commands::New { branch } => commands::new(&base_dir, branch.as_deref())?,
         cli::Commands::Ls => commands::ls(&base_dir)?,
         cli::Commands::Status => commands::status(&base_dir)?,
-        cli::Commands::Rm { name } => commands::rm(&base_dir, &name)?,
+        cli::Commands::Rm { names } => commands::rm(&base_dir, &names)?,
     }
 
     Ok(())

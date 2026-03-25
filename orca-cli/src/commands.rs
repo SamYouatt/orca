@@ -227,15 +227,17 @@ pub fn status(base_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn rm(base_dir: &Path, name: &str) -> Result<()> {
-    let config = workspace::load(base_dir, name)?;
-    let worktree_path = workspace::worktree_path(base_dir, name);
-    if worktree_path.exists() {
-        git::remove_worktree(&config.repo, &worktree_path)?;
-    } else {
-        eprintln!("worktree already removed, cleaning up config");
+pub fn rm(base_dir: &Path, names: &[String]) -> Result<()> {
+    for name in names {
+        let config = workspace::load(base_dir, name)?;
+        let worktree_path = workspace::worktree_path(base_dir, name);
+        if worktree_path.exists() {
+            git::remove_worktree(&config.repo, &worktree_path)?;
+        } else {
+            eprintln!("Worktree already removed, cleaning up config");
+        }
+        workspace::delete(base_dir, name)?;
+        println!("Removed workspace {}", theme::blue_bold(name));
     }
-    workspace::delete(base_dir, name)?;
-    println!("removed workspace '{}'", name);
     Ok(())
 }

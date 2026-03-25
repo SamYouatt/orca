@@ -19,7 +19,7 @@ pub enum Commands {
     Status,
     /// Remove a workspace
     Rm {
-        /// Name of the workspace to remove
-        name: String,
+        /// Names of the workspaces to remove
+        names: Vec<String>,
     },
 }
