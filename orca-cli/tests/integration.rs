@@ -36,7 +36,7 @@ fn test_full_lifecycle() {
 
     std::env::set_current_dir(repo_dir.path()).unwrap();
 
-    commands::new(orca_dir.path()).unwrap();
+    commands::new(orca_dir.path(), None).unwrap();
 
     let workspaces = workspace::list_all(orca_dir.path()).unwrap();
     assert_eq!(workspaces.len(), 1);
@@ -71,7 +71,7 @@ fn test_rm_with_missing_worktree() {
 
     std::env::set_current_dir(repo_dir.path()).unwrap();
 
-    commands::new(orca_dir.path()).unwrap();
+    commands::new(orca_dir.path(), None).unwrap();
 
     let workspaces = workspace::list_all(orca_dir.path()).unwrap();
     let name = workspaces[0].0.clone();
@@ -113,12 +113,38 @@ fn test_name_collision() {
 
 #[test]
 #[serial]
+fn test_new_with_custom_branch() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    std::env::set_current_dir(repo_dir.path()).unwrap();
+
+    commands::new(orca_dir.path(), Some("feat/my-feature")).unwrap();
+
+    let workspaces = workspace::list_all(orca_dir.path()).unwrap();
+    assert_eq!(workspaces.len(), 1);
+
+    let (name, _) = &workspaces[0];
+
+    let branches = git_branches(repo_dir.path());
+    assert!(
+        !branches.contains(name.as_str()),
+        "branch should not match workspace name"
+    );
+    assert!(
+        branches.contains("feat/my-feature"),
+        "custom branch should exist"
+    );
+}
+
+#[test]
+#[serial]
 fn test_new_outside_git_repo() {
     let not_a_repo = tempdir().unwrap();
     let orca_dir = tempdir().unwrap();
 
     std::env::set_current_dir(not_a_repo.path()).unwrap();
 
-    let result = commands::new(orca_dir.path());
+    let result = commands::new(orca_dir.path(), None);
     assert!(result.is_err());
 }

@@ -9,7 +9,10 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Create a new workspace based on this repo
-    New,
+    New {
+        #[arg(short, long)]
+        branch: Option<String>,
+    },
     /// Lists all workspaces
     Ls,
     /// Remove a workspace

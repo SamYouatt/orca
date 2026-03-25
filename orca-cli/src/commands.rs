@@ -8,13 +8,14 @@ use crate::{
     workspace::{self, WorkspaceConfig},
 };
 
-pub fn new(base_dir: &Path) -> Result<()> {
+pub fn new(base_dir: &Path, branch: Option<&str>) -> Result<()> {
     let repo = git::repo_root()?;
     let candidate = names::generate();
     let name = workspace::resolve_unique_name(base_dir, &candidate);
+    let branch = branch.unwrap_or(&name);
 
     let worktree_path = workspace::worktree_path(base_dir, &name);
-    git::create_worktree(&repo, &worktree_path, &name)?;
+    git::create_worktree(&repo, &worktree_path, branch)?;
 
     let config = WorkspaceConfig {
         repo,
