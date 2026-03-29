@@ -16,7 +16,10 @@ pub enum Commands {
     /// Lists all workspaces
     Ls,
     /// Show workspace status with git and GitHub info
-    Status,
+    Status {
+        #[arg(long)]
+        porcelain: bool,
+    },
     /// Remove a workspace
     Rm {
         /// Names of the workspaces to remove

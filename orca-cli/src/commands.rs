@@ -66,7 +66,7 @@ pub fn ls(base_dir: &Path) -> Result<()> {
         .max(11);
 
     let header = format!(
-        " {:<name_width$}  {:<rb_width$}  {:<16} ",
+        " 󰂽 {:<name_width$}  {:<rb_width$}  {:<16} ",
         "Name", "Repo/Branch", "Created"
     );
     println!("{}", theme::header(&header));
@@ -160,16 +160,18 @@ fn gather_workspace_status(
     }
 }
 
-pub fn status(base_dir: &Path) -> Result<()> {
+pub fn status(base_dir: &Path, porcelain: bool) -> Result<()> {
     let workspaces = workspace::list_all(base_dir)?;
 
     if workspaces.is_empty() {
-        println!("no workspaces");
+        if !porcelain {
+            println!("no workspaces");
+        }
         return Ok(());
     }
 
     let gh_available = github::is_available();
-    if !gh_available {
+    if !gh_available && !porcelain {
         eprintln!("Install gh for PR details");
     }
 
@@ -192,6 +194,22 @@ pub fn status(base_dir: &Path) -> Result<()> {
         .max()
         .unwrap()
         .max(6);
+
+    if porcelain {
+        let repo_width = entries.iter().map(|e| e.repo.len()).max().unwrap();
+        for entry in &entries {
+            println!(
+                " {:<name_width$}   {:<repo_width$}  {} {:<w$}  {}",
+                entry.name,
+                entry.repo,
+                entry.icon,
+                entry.branch,
+                entry.status,
+                w = branch_width - 2,
+            );
+        }
+        return Ok(());
+    }
 
     let header = format!(
         " {:<name_width$}  {:<branch_width$}  Status ",
