@@ -75,6 +75,19 @@ pub fn delete(base_dir: &Path, name: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn detect_current(base_dir: &Path) -> Option<String> {
+    let cwd = std::env::current_dir().ok()?;
+    let workspaces_dir = base_dir.join("workspaces");
+    let rel = cwd.strip_prefix(&workspaces_dir).ok()?;
+    let name = rel.components().next()?;
+    let name = name.as_os_str().to_string_lossy().to_string();
+    if exists(base_dir, &name) {
+        Some(name)
+    } else {
+        None
+    }
+}
+
 pub fn exists(base_dir: &Path, name: &str) -> bool {
     config_path(base_dir, name).exists()
 }

@@ -25,4 +25,13 @@ pub enum Commands {
         /// Names of the workspaces to remove
         names: Vec<String>,
     },
+    /// Bidirectionally sync files between a workspace and its root repo
+    Sync {
+        /// Name of the workspace to sync (detected from cwd if omitted)
+        #[arg(short, long)]
+        workspace: Option<String>,
+        /// Show individual file sync events
+        #[arg(short, long)]
+        verbose: bool,
+    },
 }
