@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -139,6 +140,44 @@ pub fn has_uncommitted_changes(worktree_path: &Path) -> bool {
         .ok()
         .map(|o| !o.stdout.is_empty())
         .unwrap_or(false)
+}
+
+pub fn tracked_files(repo: &Path, rel_paths: &[String]) -> HashSet<String> {
+    if rel_paths.is_empty() {
+        return HashSet::new();
+    }
+    let mut cmd = Command::new("git");
+    cmd.args(["-C", &repo.display().to_string(), "ls-files", "--"]);
+    for p in rel_paths {
+        cmd.arg(p);
+    }
+    cmd.output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .map(|l| l.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+pub fn checkout_files(repo: &Path, rel_paths: &[&str]) -> Result<()> {
+    if rel_paths.is_empty() {
+        return Ok(());
+    }
+    let mut cmd = Command::new("git");
+    cmd.args(["-C", &repo.display().to_string(), "checkout", "--"]);
+    for p in rel_paths {
+        cmd.arg(p);
+    }
+    let output = cmd.output().context("failed to run git checkout")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("git checkout failed: {}", stderr.trim());
+    }
+    Ok(())
 }
 
 pub fn remove_worktree(repo: &Path, worktree_path: &Path) -> Result<()> {

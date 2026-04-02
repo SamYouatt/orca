@@ -4,13 +4,13 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
-use std::{process::Command, thread};
+use std::thread;
 
 use anyhow::{Result, bail};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use notify::{EventKind, RecursiveMode, Watcher, recommended_watcher};
 
-use crate::theme;
+use crate::{git, theme};
 
 const DEBOUNCE_MS: u64 = 200;
 const POLL_MS: u64 = 50;
@@ -102,7 +102,7 @@ fn files_identical(a: &Path, b: &Path) -> bool {
     }
 }
 
-pub fn copy_or_delete(src: &Path, dst: &Path, state: &SyncState, side: Side) -> Result<bool> {
+pub fn copy_or_delete(src: &Path, dst: &Path, state: &SyncState) -> Result<bool> {
     if src.exists() && dst.exists() && files_identical(src, dst) {
         return Ok(false);
     }
@@ -125,10 +125,6 @@ pub fn copy_or_delete(src: &Path, dst: &Path, state: &SyncState, side: Side) -> 
     if let Err(ref e) = result {
         state.in_flight.lock().unwrap().remove(dst);
         return Err(anyhow::anyhow!("{}", e));
-    }
-
-    if side == Side::Worktree {
-        state.root_written.lock().unwrap().insert(dst.to_path_buf());
     }
 
     Ok(true)
@@ -166,7 +162,7 @@ pub fn sync_once(
             let src = root.join(&rel);
             let dst = worktree.join(&rel);
             if !is_ignored(root_filter, root, &src) {
-                match copy_or_delete(&src, &dst, state, Side::Root) {
+                match copy_or_delete(&src, &dst, state) {
                     Err(e) => {
                         eprintln!(
                             "  {} sync {} → worktree: {}",
@@ -213,7 +209,7 @@ pub fn sync_once(
             Side::Worktree => "worktree → root",
         };
 
-        match copy_or_delete(&src, &dst, state, side) {
+        match copy_or_delete(&src, &dst, state) {
             Err(e) => {
                 eprintln!(
                     "  {} sync {} {}: {}",
@@ -237,6 +233,13 @@ pub fn sync_once(
                         direction,
                     );
                 }
+                if side == Side::Worktree {
+                    state
+                        .root_written
+                        .lock()
+                        .unwrap()
+                        .insert(rel.clone());
+                }
                 synced.push((rel, side));
             }
             Ok(false) => {}
@@ -246,19 +249,6 @@ pub fn sync_once(
     synced
 }
 
-fn is_git_tracked(root: &Path, rel_path: &str) -> bool {
-    Command::new("git")
-        .args([
-            "-C",
-            &root.to_string_lossy(),
-            "ls-files",
-            "--error-unmatch",
-            rel_path,
-        ])
-        .output()
-        .is_ok_and(|o| o.status.success())
-}
-
 fn cleanup_root(root: &Path, root_written: &HashSet<PathBuf>) {
     if root_written.is_empty() {
         return;
@@ -266,36 +256,26 @@ fn cleanup_root(root: &Path, root_written: &HashSet<PathBuf>) {
 
     let rel_paths: Vec<String> = root_written
         .iter()
-        .filter_map(|p| relative_path(root, p))
         .map(|p| p.display().to_string())
         .collect();
 
-    if rel_paths.is_empty() {
-        return;
-    }
+    let tracked_set = git::tracked_files(root, &rel_paths);
 
-    let mut tracked = Vec::new();
-    let mut untracked = Vec::new();
-    for rel in &rel_paths {
-        if is_git_tracked(root, rel) {
-            tracked.push(rel.as_str());
-        } else {
-            untracked.push(rel.as_str());
-        }
-    }
+    let tracked: Vec<&str> = rel_paths
+        .iter()
+        .filter(|p| tracked_set.contains(p.as_str()))
+        .map(|p| p.as_str())
+        .collect();
+    let untracked: Vec<&str> = rel_paths
+        .iter()
+        .filter(|p| !tracked_set.contains(p.as_str()))
+        .map(|p| p.as_str())
+        .collect();
 
     let mut restored = 0;
 
-    if !tracked.is_empty() {
-        let root_str = root.to_string_lossy();
-        let mut args = vec!["-C", &*root_str, "checkout", "--"];
-        args.extend(&tracked);
-
-        if let Ok(o) = Command::new("git").args(&args).output()
-            && o.status.success()
-        {
-            restored += tracked.len();
-        }
+    if git::checkout_files(root, &tracked).is_ok() {
+        restored += tracked.len();
     }
 
     for rel in &untracked {
@@ -312,6 +292,56 @@ fn cleanup_root(root: &Path, root_written: &HashSet<PathBuf>) {
             theme::green("✓"),
             restored,
         );
+    }
+}
+
+fn make_watcher(
+    base: PathBuf,
+    state: Arc<SyncState>,
+    tx: mpsc::Sender<(PathBuf, Side)>,
+    side: Side,
+) -> notify::Result<impl Watcher> {
+    let git_dir = base.join(".git");
+    recommended_watcher(move |res: notify::Result<notify::Event>| {
+        if let Ok(event) = res {
+            match event.kind {
+                EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {}
+                _ => return,
+            }
+            for path in event.paths {
+                if path.starts_with(&git_dir) {
+                    continue;
+                }
+                if state.in_flight.lock().unwrap().remove(&path) {
+                    continue;
+                }
+                let _ = tx.send((path, side));
+            }
+        }
+    })
+}
+
+fn enqueue_event(
+    state: &SyncState,
+    root: &Path,
+    worktree: &Path,
+    path: PathBuf,
+    side: Side,
+) {
+    let rel = match side {
+        Side::Root => relative_path(root, &path),
+        Side::Worktree => relative_path(worktree, &path),
+    };
+    if let Some(rel) = rel {
+        let mut pending = state.pending.lock().unwrap();
+        let new_side = PendingSide::One(side);
+        pending
+            .entry(rel)
+            .and_modify(|(ts, existing)| {
+                *ts = Instant::now();
+                *existing = existing.merge(side);
+            })
+            .or_insert((Instant::now(), new_side));
     }
 }
 
@@ -339,47 +369,10 @@ pub fn run(root: &Path, worktree: &Path, verbose: bool) -> Result<()> {
 
     let (tx, rx) = mpsc::channel();
 
-    let root_owned = root.to_path_buf();
-    let tx_root = tx.clone();
-    let state_root = state.clone();
-    let mut root_watcher = recommended_watcher(move |res: notify::Result<notify::Event>| {
-        if let Ok(event) = res {
-            match event.kind {
-                EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {}
-                _ => return,
-            }
-            for path in event.paths {
-                if path.starts_with(root_owned.join(".git")) {
-                    continue;
-                }
-                if state_root.in_flight.lock().unwrap().remove(&path) {
-                    continue;
-                }
-                let _ = tx_root.send((path, Side::Root));
-            }
-        }
-    })?;
-
-    let wt_owned = worktree.to_path_buf();
-    let state_wt = state.clone();
-    let tx_wt = tx;
-    let mut wt_watcher = recommended_watcher(move |res: notify::Result<notify::Event>| {
-        if let Ok(event) = res {
-            match event.kind {
-                EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {}
-                _ => return,
-            }
-            for path in event.paths {
-                if path.starts_with(wt_owned.join(".git")) {
-                    continue;
-                }
-                if state_wt.in_flight.lock().unwrap().remove(&path) {
-                    continue;
-                }
-                let _ = tx_wt.send((path, Side::Worktree));
-            }
-        }
-    })?;
+    let mut root_watcher =
+        make_watcher(root.to_path_buf(), state.clone(), tx.clone(), Side::Root)?;
+    let mut wt_watcher =
+        make_watcher(worktree.to_path_buf(), state.clone(), tx, Side::Worktree)?;
 
     root_watcher.watch(root, RecursiveMode::Recursive)?;
     wt_watcher.watch(worktree, RecursiveMode::Recursive)?;
@@ -405,20 +398,9 @@ pub fn run(root: &Path, worktree: &Path, verbose: bool) -> Result<()> {
     while !shutdown.load(Ordering::SeqCst) {
         match rx.recv_timeout(Duration::from_millis(100)) {
             Ok((path, side)) => {
-                let rel = match side {
-                    Side::Root => relative_path(root, &path),
-                    Side::Worktree => relative_path(worktree, &path),
-                };
-                if let Some(rel) = rel {
-                    let mut pending = state.pending.lock().unwrap();
-                    let new_side = PendingSide::One(side);
-                    pending
-                        .entry(rel)
-                        .and_modify(|(ts, existing)| {
-                            *ts = Instant::now();
-                            *existing = existing.merge(side);
-                        })
-                        .or_insert((Instant::now(), new_side));
+                enqueue_event(&state, root, worktree, path, side);
+                while let Ok((path, side)) = rx.try_recv() {
+                    enqueue_event(&state, root, worktree, path, side);
                 }
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {}

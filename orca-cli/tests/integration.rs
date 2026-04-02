@@ -227,7 +227,7 @@ fn test_sync_worktree_to_root() {
             .root_written
             .lock()
             .unwrap()
-            .contains(&root.path().join("agent.txt"))
+            .contains(&PathBuf::from("agent.txt"))
     );
 }
 
@@ -371,7 +371,7 @@ fn test_sync_in_flight_cleared_on_failure() {
     let dst = PathBuf::from("/nonexistent_root_path/sub/file.txt");
 
     let state = SyncState::new();
-    let result = sync::copy_or_delete(&src, &dst, &state, Side::Root);
+    let result = sync::copy_or_delete(&src, &dst, &state);
 
     assert!(result.is_err());
     assert!(
