@@ -11,6 +11,10 @@ const YELLOW: Rgb = Rgb(220, 170, 30);
 const PURPLE: Rgb = Rgb(160, 90, 210);
 const LIGHT_BLUE: Rgb = Rgb(100, 160, 240);
 const GREY: Rgb = Rgb(140, 140, 140);
+const GOLD: Rgb = Rgb(240, 140, 2);
+const BLACK: Rgb = Rgb(30, 30, 30);
+const DARK_GREY: Rgb = Rgb(100, 100, 100);
+const LIGHT_GREY: Rgb = Rgb(190, 190, 190);
 
 fn fg(s: &str, Rgb(r, g, b): &Rgb) -> ColoredString {
     s.truecolor(*r, *g, *b)
@@ -59,4 +63,28 @@ pub fn light_blue(s: &str) -> ColoredString {
 
 pub fn grey(s: &str) -> ColoredString {
     fg(s, &GREY)
+}
+
+pub fn gold(s: &str) -> ColoredString {
+    fg(s, &GOLD)
+}
+
+pub fn gold_bold(s: &str) -> ColoredString {
+    fg(s, &GOLD).bold()
+}
+
+pub fn black(s: &str) -> ColoredString {
+    fg(s, &BLACK)
+}
+
+pub fn black_bold(s: &str) -> ColoredString {
+    fg(s, &BLACK).bold()
+}
+
+pub fn dark_grey(s: &str) -> ColoredString {
+    fg(s, &DARK_GREY)
+}
+
+pub fn light_grey(s: &str) -> ColoredString {
+    fg(s, &LIGHT_GREY)
 }
