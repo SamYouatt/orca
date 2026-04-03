@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
@@ -150,6 +150,103 @@ fn test_new_outside_git_repo() {
 
     let result = commands::new(orca_dir.path(), None);
     assert!(result.is_err());
+}
+
+fn write_script(path: &Path, body: &str) {
+    std::fs::write(
+        path,
+        format!("#!/bin/sh\n{body}\n"),
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+}
+
+#[test]
+#[serial]
+fn test_new_runs_global_setup_script() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let marker = orca_dir.path().join("global-ran");
+    write_script(
+        &orca_dir.path().join("setup.sh"),
+        &format!("touch {}", marker.display()),
+    );
+
+    std::fs::write(
+        orca_dir.path().join("settings.json"),
+        r#"{ "setup": { "script": "setup.sh" } }"#,
+    )
+    .unwrap();
+
+    std::env::set_current_dir(repo_dir.path()).unwrap();
+    commands::new(orca_dir.path(), None).unwrap();
+
+    assert!(marker.exists(), "global setup script should have run");
+}
+
+#[test]
+#[serial]
+fn test_new_runs_project_setup_script() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let marker = orca_dir.path().join("project-ran");
+    write_script(
+        &repo_dir.path().join("setup.sh"),
+        &format!("touch {}", marker.display()),
+    );
+
+    std::fs::write(
+        repo_dir.path().join("orca.json"),
+        r#"{ "setup": { "script": "setup.sh" } }"#,
+    )
+    .unwrap();
+
+    std::env::set_current_dir(repo_dir.path()).unwrap();
+    commands::new(orca_dir.path(), None).unwrap();
+
+    assert!(marker.exists(), "project setup script should have run");
+}
+
+#[test]
+#[serial]
+fn test_global_setup_runs_before_project_setup() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let log = orca_dir.path().join("order.log");
+
+    write_script(
+        &orca_dir.path().join("setup.sh"),
+        &format!("echo global >> {}", log.display()),
+    );
+    std::fs::write(
+        orca_dir.path().join("settings.json"),
+        r#"{ "setup": { "script": "setup.sh" } }"#,
+    )
+    .unwrap();
+
+    write_script(
+        &repo_dir.path().join("setup.sh"),
+        &format!("echo project >> {}", log.display()),
+    );
+    std::fs::write(
+        repo_dir.path().join("orca.json"),
+        r#"{ "setup": { "script": "setup.sh" } }"#,
+    )
+    .unwrap();
+
+    std::env::set_current_dir(repo_dir.path()).unwrap();
+    commands::new(orca_dir.path(), None).unwrap();
+
+    let contents = std::fs::read_to_string(&log).unwrap();
+    let lines: Vec<&str> = contents.lines().collect();
+    assert_eq!(lines, vec!["global", "project"]);
 }
 
 fn past_debounce() -> Instant {
