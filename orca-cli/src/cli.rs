@@ -26,6 +26,8 @@ pub enum Commands {
     Rm {
         /// Names of the workspaces to remove
         names: Vec<String>,
+        #[arg(long)]
+        no_script: bool,
     },
     /// View your fish collection
     Collection,
