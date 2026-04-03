@@ -13,7 +13,7 @@ interface FileListProps {
 export function FileList({ files, activeFile, annotations, onSelect }: FileListProps) {
   return (
     <div className="py-2">
-      <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      <div className="px-3 py-1 text-xs font-semibold text-muted-foreground tracking-wider">
         Files ({files.length})
       </div>
       {files.map((file) => {
@@ -22,7 +22,7 @@ export function FileList({ files, activeFile, annotations, onSelect }: FileListP
           <Button
             key={file.path}
             variant="ghost"
-            className={`w-full justify-start rounded-none px-3 py-1.5 text-sm h-auto ${
+            className={`w-full justify-start rounded-none px-3 py-1.5 text-sm font-normal h-auto ${
               activeFile === file.path ? "bg-muted" : ""
             }`}
             onClick={() => onSelect(file.path)}

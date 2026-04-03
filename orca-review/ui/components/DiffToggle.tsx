@@ -19,11 +19,11 @@ export function DiffToggle({ current, defaultBranch, switching, onSwitch }: Diff
       className="bg-muted rounded-md p-0.5"
       disabled={switching}
     >
-      <ToggleGroupItem value="uncommitted" size="sm" className="text-xs px-3 py-1">
-        Unstaged
+      <ToggleGroupItem value="uncommitted" size="sm" className="text-xs px-3 py-1 aria-pressed:bg-background aria-pressed:shadow-sm">
+        Uncommited
       </ToggleGroupItem>
-      <ToggleGroupItem value="branch" size="sm" className="text-xs px-3 py-1">
-        vs {defaultBranch}
+      <ToggleGroupItem value="branch" size="sm" className="text-xs px-3 py-1 aria-pressed:bg-background aria-pressed:shadow-sm">
+        Branch
       </ToggleGroupItem>
     </ToggleGroup>
   );
