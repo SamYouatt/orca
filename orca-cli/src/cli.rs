@@ -12,6 +12,8 @@ pub enum Commands {
     New {
         #[arg(short, long)]
         branch: Option<String>,
+        #[arg(long)]
+        no_script: bool,
     },
     /// Lists all workspaces
     Ls,
@@ -25,6 +27,8 @@ pub enum Commands {
         /// Names of the workspaces to remove
         names: Vec<String>,
     },
+    /// View your fish collection
+    Collection,
     /// Bidirectionally sync files between a workspace and its root repo
     Sync {
         /// Name of the workspace to sync (detected from cwd if omitted)
