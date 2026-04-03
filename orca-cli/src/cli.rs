@@ -38,4 +38,6 @@ pub enum Commands {
         #[arg(short, long)]
         verbose: bool,
     },
+    /// Open interactive code review in the browser
+    Critique,
 }

@@ -14,7 +14,8 @@ A lot of the functionality is inspired by [Conductor](https://www.conductor.buil
 2. Navigate to its workspace at `~/.orca/workspaces`
 3. Optionally start `orca watch` for automatic teardown on PR merge
 4. Check the status of other workspaces with `orca status` and jump to them if you need to work on them
-4. Complete your work and run `orca complete` to teardown the workspace
+5. Once the agent has made changes, use the slash command `/critique` to open a web view of the diffs where you comment on the changes
+6. Complete your work and then run `orca rm` to clean up the workspace
 
 ## Configuration
 

@@ -20,6 +20,7 @@ fn main() -> anyhow::Result<()> {
         cli::Commands::Sync { workspace, verbose } => {
             commands::sync(&base_dir, workspace.as_deref(), verbose)?
         }
+        cli::Commands::Critique => commands::critique(&base_dir)?,
     }
 
     Ok(())
