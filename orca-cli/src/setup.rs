@@ -1,3 +1,4 @@
+use std::fmt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -10,24 +11,52 @@ pub struct ScriptContext<'a> {
     pub workspace_path: &'a Path,
 }
 
+enum ScriptKind {
+    Setup,
+    Teardown,
+}
+
+impl fmt::Display for ScriptKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ScriptKind::Setup => write!(f, "setup"),
+            ScriptKind::Teardown => write!(f, "teardown"),
+        }
+    }
+}
+
 pub fn run_setup_scripts(base_dir: &Path, repo: &Path, ctx: &ScriptContext) {
     let settings = config::load_global_settings(base_dir);
     let project = config::load_project_config(repo);
 
     if let Some(script) = config::resolve_script(settings.setup.as_ref(), base_dir) {
-        run_script(&script, ctx);
+        run_script(&script, ctx, ScriptKind::Setup);
     }
 
     if let Some(script) = config::resolve_script(project.setup.as_ref(), repo) {
-        run_script(&script, ctx);
+        run_script(&script, ctx, ScriptKind::Setup);
     }
 }
 
-fn run_script(script: &Path, ctx: &ScriptContext) {
+pub fn run_teardown_scripts(base_dir: &Path, repo: &Path, ctx: &ScriptContext) {
+    let settings = config::load_global_settings(base_dir);
+    let project = config::load_project_config(repo);
+
+    if let Some(script) = config::resolve_script(project.teardown.as_ref(), repo) {
+        run_script(&script, ctx, ScriptKind::Teardown);
+    }
+
+    if let Some(script) = config::resolve_script(settings.teardown.as_ref(), base_dir) {
+        run_script(&script, ctx, ScriptKind::Teardown);
+    }
+}
+
+fn run_script(script: &Path, ctx: &ScriptContext, kind: ScriptKind) {
     if !script.exists() {
         eprintln!(
-            "{} setup script not found: {}",
+            "{} {} script not found: {}",
             theme::yellow("warning:"),
+            kind,
             script.display()
         );
         return;
@@ -47,16 +76,18 @@ fn run_script(script: &Path, ctx: &ScriptContext) {
         Ok(status) if status.success() => {}
         Ok(status) => {
             eprintln!(
-                "{} setup script exited with status {}: {}",
+                "{} {} script exited with status {}: {}",
                 theme::red("error:"),
+                kind,
                 status.code().unwrap_or(-1),
                 script.display()
             );
         }
         Err(e) => {
             eprintln!(
-                "{} failed to run setup script {}: {}",
+                "{} failed to run {} script {}: {}",
                 theme::red("error:"),
+                kind,
                 script.display(),
                 e
             );
