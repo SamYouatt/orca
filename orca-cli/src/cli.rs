@@ -12,6 +12,8 @@ pub enum Commands {
     New {
         #[arg(short, long)]
         branch: Option<String>,
+        #[arg(long)]
+        no_script: bool,
     },
     /// Lists all workspaces
     Ls,

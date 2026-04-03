@@ -11,7 +11,7 @@ use crate::theme;
 use crate::workspace;
 use crate::workspace::WorkspaceConfig;
 
-pub fn new(base_dir: &Path, branch: Option<&str>) -> Result<()> {
+pub fn new(base_dir: &Path, branch: Option<&str>, no_script: bool) -> Result<()> {
     let repo = git::repo_root()?;
     let catch = names::generate();
     let name = workspace::resolve_unique_name(base_dir, &catch.name);
@@ -27,15 +27,17 @@ pub fn new(base_dir: &Path, branch: Option<&str>) -> Result<()> {
 
     workspace::save(base_dir, &name, &config)?;
 
-    setup::run_setup_scripts(
-        base_dir,
-        &repo,
-        &ScriptContext {
-            workspace_name: &name,
-            branch_name: branch,
-            workspace_path: &worktree_path,
-        },
-    );
+    if !no_script {
+        setup::run_setup_scripts(
+            base_dir,
+            &repo,
+            &ScriptContext {
+                workspace_name: &name,
+                branch_name: branch,
+                workspace_path: &worktree_path,
+            },
+        );
+    }
 
     println!(
         "Created workspace {} on branch {} at {}",

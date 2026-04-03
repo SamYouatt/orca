@@ -10,7 +10,9 @@ fn main() -> anyhow::Result<()> {
     let cli = cli::Cli::parse();
 
     match cli.command {
-        cli::Commands::New { branch } => commands::new(&base_dir, branch.as_deref())?,
+        cli::Commands::New { branch, no_script } => {
+            commands::new(&base_dir, branch.as_deref(), no_script)?
+        }
         cli::Commands::Ls => commands::ls(&base_dir)?,
         cli::Commands::Status { porcelain } => commands::status(&base_dir, porcelain)?,
         cli::Commands::Rm { names } => commands::rm(&base_dir, &names)?,
