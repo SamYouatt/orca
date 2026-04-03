@@ -16,7 +16,7 @@ export function DiffToggle({ current, defaultBranch, switching, onSwitch }: Diff
         const next = values[0] as "uncommitted" | "branch" | undefined;
         if (next && next !== current) onSwitch(next);
       }}
-      className="bg-muted rounded-md p-0.5"
+      className="bg-muted rounded-lg p-0.5"
       disabled={switching}
     >
       <ToggleGroupItem value="uncommitted" size="sm" className="text-xs px-3 py-1 aria-pressed:bg-background aria-pressed:shadow-sm">
