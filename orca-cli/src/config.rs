@@ -4,18 +4,20 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Default)]
-pub struct SetupConfig {
+pub struct ScriptConfig {
     pub script: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct GlobalSettings {
-    pub setup: Option<SetupConfig>,
+    pub setup: Option<ScriptConfig>,
+    pub teardown: Option<ScriptConfig>,
 }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct ProjectConfig {
-    pub setup: Option<SetupConfig>,
+    pub setup: Option<ScriptConfig>,
+    pub teardown: Option<ScriptConfig>,
 }
 
 pub fn load_global_settings(base_dir: &Path) -> GlobalSettings {
@@ -46,8 +48,8 @@ pub fn load_project_config(repo: &Path) -> ProjectConfig {
     }
 }
 
-pub fn resolve_script(setup: Option<&SetupConfig>, base: &Path) -> Option<PathBuf> {
-    let script = setup?.script.as_deref()?;
+pub fn resolve_script(config: Option<&ScriptConfig>, base: &Path) -> Option<PathBuf> {
+    let script = config?.script.as_deref()?;
     let path = Path::new(script);
     if path.is_absolute() {
         Some(path.to_path_buf())
