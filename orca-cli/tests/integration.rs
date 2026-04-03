@@ -153,11 +153,7 @@ fn test_new_outside_git_repo() {
 }
 
 fn write_script(path: &Path, body: &str) {
-    std::fs::write(
-        path,
-        format!("#!/bin/sh\n{body}\n"),
-    )
-    .unwrap();
+    std::fs::write(path, format!("#!/bin/sh\n{body}\n")).unwrap();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

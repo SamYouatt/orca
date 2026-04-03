@@ -3,8 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
-use std::time::{Duration, Instant};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use anyhow::{Result, bail};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
@@ -234,11 +234,7 @@ pub fn sync_once(
                     );
                 }
                 if side == Side::Worktree {
-                    state
-                        .root_written
-                        .lock()
-                        .unwrap()
-                        .insert(rel.clone());
+                    state.root_written.lock().unwrap().insert(rel.clone());
                 }
                 synced.push((rel, side));
             }
@@ -321,13 +317,7 @@ fn make_watcher(
     })
 }
 
-fn enqueue_event(
-    state: &SyncState,
-    root: &Path,
-    worktree: &Path,
-    path: PathBuf,
-    side: Side,
-) {
+fn enqueue_event(state: &SyncState, root: &Path, worktree: &Path, path: PathBuf, side: Side) {
     let rel = match side {
         Side::Root => relative_path(root, &path),
         Side::Worktree => relative_path(worktree, &path),
@@ -369,10 +359,8 @@ pub fn run(root: &Path, worktree: &Path, verbose: bool) -> Result<()> {
 
     let (tx, rx) = mpsc::channel();
 
-    let mut root_watcher =
-        make_watcher(root.to_path_buf(), state.clone(), tx.clone(), Side::Root)?;
-    let mut wt_watcher =
-        make_watcher(worktree.to_path_buf(), state.clone(), tx, Side::Worktree)?;
+    let mut root_watcher = make_watcher(root.to_path_buf(), state.clone(), tx.clone(), Side::Root)?;
+    let mut wt_watcher = make_watcher(worktree.to_path_buf(), state.clone(), tx, Side::Worktree)?;
 
     root_watcher.watch(root, RecursiveMode::Recursive)?;
     wt_watcher.watch(worktree, RecursiveMode::Recursive)?;

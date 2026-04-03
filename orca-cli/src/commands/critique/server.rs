@@ -60,7 +60,14 @@ impl ReviewServer {
         let (tx, rx) = mpsc::channel::<FeedbackPayload>();
 
         let handle = std::thread::spawn(move || {
-            Self::serve(server, tx, initial_patch, initial_ref, initial_error, default_branch);
+            Self::serve(
+                server,
+                tx,
+                initial_patch,
+                initial_ref,
+                initial_error,
+                default_branch,
+            );
         });
 
         Ok(Self {
@@ -71,7 +78,9 @@ impl ReviewServer {
     }
 
     pub fn wait_for_feedback(&self) -> Result<FeedbackPayload> {
-        self.rx.recv().context("review server closed without feedback")
+        self.rx
+            .recv()
+            .context("review server closed without feedback")
     }
 
     fn serve(
@@ -83,7 +92,11 @@ impl ReviewServer {
         default_branch: String,
     ) {
         let mut current_data = build_diff_data(
-            &initial_patch, &initial_ref, "uncommitted", &default_branch, &initial_error,
+            &initial_patch,
+            &initial_ref,
+            "uncommitted",
+            &default_branch,
+            &initial_error,
         );
 
         for mut request in server.incoming_requests() {
@@ -98,13 +111,18 @@ impl ReviewServer {
                     let body = read_body(&mut request);
                     match serde_json::from_str::<SwitchRequest>(&body) {
                         Ok(req) if req.diff_type == "uncommitted" || req.diff_type == "branch" => {
-                            let (patch, git_ref, error) =
-                                run_diff(&req.diff_type, &default_branch);
+                            let (patch, git_ref, error) = run_diff(&req.diff_type, &default_branch);
                             current_data = build_diff_data(
-                                &patch, &git_ref, &req.diff_type, &default_branch, &error,
+                                &patch,
+                                &git_ref,
+                                &req.diff_type,
+                                &default_branch,
+                                &error,
                             );
-                            let _ =
-                                json_response(request, &serde_json::to_string(&current_data).unwrap());
+                            let _ = json_response(
+                                request,
+                                &serde_json::to_string(&current_data).unwrap(),
+                            );
                         }
                         _ => {
                             let _ = json_response(request, r#"{"error":"invalid diffType"}"#);
@@ -136,9 +154,8 @@ fn json_response(
     request: tiny_http::Request,
     body: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let response = tiny_http::Response::from_string(body).with_header(
-        tiny_http::Header::from_bytes("Content-Type", "application/json").unwrap(),
-    );
+    let response = tiny_http::Response::from_string(body)
+        .with_header(tiny_http::Header::from_bytes("Content-Type", "application/json").unwrap());
     request.respond(response)?;
     Ok(())
 }
@@ -146,9 +163,8 @@ fn json_response(
 fn html_response(
     request: tiny_http::Request,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let response = tiny_http::Response::from_string(HTML).with_header(
-        tiny_http::Header::from_bytes("Content-Type", "text/html").unwrap(),
-    );
+    let response = tiny_http::Response::from_string(HTML)
+        .with_header(tiny_http::Header::from_bytes("Content-Type", "text/html").unwrap());
     request.respond(response)?;
     Ok(())
 }

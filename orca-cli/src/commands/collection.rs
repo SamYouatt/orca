@@ -180,7 +180,11 @@ pub fn collection(base_dir: &Path) -> Result<()> {
         card_line(&empty_msg, color_bg);
     } else {
         let mut by_rarity = all_catches.clone();
-        by_rarity.sort_by(|a, b| b.1.rarity.cmp(&a.1.rarity).then(b.1.caught_at.cmp(&a.1.caught_at)));
+        by_rarity.sort_by(|a, b| {
+            b.1.rarity
+                .cmp(&a.1.rarity)
+                .then(b.1.caught_at.cmp(&a.1.caught_at))
+        });
         by_rarity.truncate(5);
 
         card_line(&theme::black_bold("Rarest catches").to_string(), color_bg);
@@ -201,11 +205,7 @@ pub fn collection(base_dir: &Path) -> Result<()> {
 }
 
 fn print_catches(catches: &[(&str, &CatchRecord)], color_bg: bool) {
-    let repo_w = catches
-        .iter()
-        .map(|(_, r)| r.repo.len())
-        .max()
-        .unwrap_or(0);
+    let repo_w = catches.iter().map(|(_, r)| r.repo.len()).max().unwrap_or(0);
     let right_w = repo_w + 2 + 8;
 
     for (name, record) in catches {

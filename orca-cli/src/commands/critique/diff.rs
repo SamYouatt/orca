@@ -37,7 +37,7 @@ pub fn run_diff(diff_type: &str, default_branch: &str) -> (String, String, Optio
                         Some(format!("Could not find merge base with {default_branch}")),
                     );
                 }
-                match git_diff(&["diff", &format!("{base}")]) {
+                match git_diff(&["diff", &base.to_string()]) {
                     Ok(patch) => (patch, format!("vs {default_branch}"), None),
                     Err(e) => (String::new(), format!("vs {default_branch}"), Some(e)),
                 }

@@ -3,10 +3,19 @@ use std::process::Command;
 fn main() {
     let review_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../orca-review");
 
-    println!("cargo:rerun-if-changed={}",review_dir.join("ui").display());
-    println!("cargo:rerun-if-changed={}",review_dir.join("package.json").display());
-    println!("cargo:rerun-if-changed={}",review_dir.join("vite.config.ts").display());
-    println!("cargo:rerun-if-changed={}",review_dir.join("tsconfig.json").display());
+    println!("cargo:rerun-if-changed={}", review_dir.join("ui").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        review_dir.join("package.json").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        review_dir.join("vite.config.ts").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        review_dir.join("tsconfig.json").display()
+    );
 
     let install = Command::new("bun")
         .arg("install")
