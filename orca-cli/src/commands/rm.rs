@@ -1,10 +1,19 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use std::path::Path;
 
 use crate::{git, theme, workspace};
 
 pub fn rm(base_dir: &Path, names: &[String]) -> Result<()> {
-    for name in names {
+    let resolved: Vec<String> = if names.is_empty() {
+        match workspace::detect_current(base_dir) {
+            Some(name) => vec![name],
+            None => bail!("not in a workspace and no workspace names given"),
+        }
+    } else {
+        names.to_vec()
+    };
+
+    for name in &resolved {
         let config = workspace::load(base_dir, name)?;
         let worktree_path = workspace::worktree_path(base_dir, name);
         if worktree_path.exists() {
