@@ -59,7 +59,7 @@ fn test_full_lifecycle() {
 
     assert!(!workspace::config_path(orca_dir.path(), name).starts_with(&expected_worktree));
 
-    commands::rm(orca_dir.path(), &[name.clone()]).unwrap();
+    commands::rm(orca_dir.path(), &[name.clone()], false).unwrap();
 
     assert!(!workspace::exists(orca_dir.path(), name));
     assert!(!expected_worktree.exists());
@@ -82,7 +82,7 @@ fn test_rm_with_missing_worktree() {
 
     std::fs::remove_dir_all(&worktree).unwrap();
 
-    commands::rm(orca_dir.path(), &[name.clone()]).unwrap();
+    commands::rm(orca_dir.path(), &[name.clone()], false).unwrap();
     assert!(!workspace::exists(orca_dir.path(), &name));
 }
 
@@ -243,6 +243,105 @@ fn test_global_setup_runs_before_project_setup() {
     let contents = std::fs::read_to_string(&log).unwrap();
     let lines: Vec<&str> = contents.lines().collect();
     assert_eq!(lines, vec!["global", "project"]);
+}
+
+#[test]
+#[serial]
+fn test_rm_runs_global_teardown_script() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let marker = orca_dir.path().join("global-teardown-ran");
+    write_script(
+        &orca_dir.path().join("teardown.sh"),
+        &format!("touch {}", marker.display()),
+    );
+
+    std::fs::write(
+        orca_dir.path().join("settings.json"),
+        r#"{ "teardown": { "script": "teardown.sh" } }"#,
+    )
+    .unwrap();
+
+    std::env::set_current_dir(repo_dir.path()).unwrap();
+    commands::new(orca_dir.path(), None, true).unwrap();
+
+    let workspaces = workspace::list_all(orca_dir.path()).unwrap();
+    let name = workspaces[0].0.clone();
+
+    commands::rm(orca_dir.path(), &[name], false).unwrap();
+
+    assert!(marker.exists(), "global teardown script should have run");
+}
+
+#[test]
+#[serial]
+fn test_rm_runs_project_teardown_script() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let marker = orca_dir.path().join("project-teardown-ran");
+    write_script(
+        &repo_dir.path().join("teardown.sh"),
+        &format!("touch {}", marker.display()),
+    );
+
+    std::fs::write(
+        repo_dir.path().join("orca.json"),
+        r#"{ "teardown": { "script": "teardown.sh" } }"#,
+    )
+    .unwrap();
+
+    std::env::set_current_dir(repo_dir.path()).unwrap();
+    commands::new(orca_dir.path(), None, true).unwrap();
+
+    let workspaces = workspace::list_all(orca_dir.path()).unwrap();
+    let name = workspaces[0].0.clone();
+
+    commands::rm(orca_dir.path(), &[name], false).unwrap();
+
+    assert!(marker.exists(), "project teardown script should have run");
+}
+
+#[test]
+#[serial]
+fn test_project_teardown_runs_before_global_teardown() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let log = orca_dir.path().join("teardown-order.log");
+
+    write_script(
+        &orca_dir.path().join("teardown.sh"),
+        &format!("echo global >> {}", log.display()),
+    );
+    std::fs::write(
+        orca_dir.path().join("settings.json"),
+        r#"{ "teardown": { "script": "teardown.sh" } }"#,
+    )
+    .unwrap();
+
+    write_script(
+        &repo_dir.path().join("teardown.sh"),
+        &format!("echo project >> {}", log.display()),
+    );
+    std::fs::write(
+        repo_dir.path().join("orca.json"),
+        r#"{ "teardown": { "script": "teardown.sh" } }"#,
+    )
+    .unwrap();
+
+    std::env::set_current_dir(repo_dir.path()).unwrap();
+    commands::new(orca_dir.path(), None, true).unwrap();
+
+    let workspaces = workspace::list_all(orca_dir.path()).unwrap();
+    let name = workspaces[0].0.clone();
+
+    commands::rm(orca_dir.path(), &[name], false).unwrap();
+
+    let contents = std::fs::read_to_string(&log).unwrap();
+    let lines: Vec<&str> = contents.lines().collect();
+    assert_eq!(lines, vec!["project", "global"]);
 }
 
 fn past_debounce() -> Instant {
