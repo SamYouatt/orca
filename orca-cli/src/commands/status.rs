@@ -154,11 +154,12 @@ pub fn status(base_dir: &Path, porcelain: bool) -> Result<()> {
         println!(" {}", theme::blue(repo));
         for entry in group {
             println!(
-                " {}  {} {}  {}",
-                format!("{:<name_width$}", entry.name),
+                " {:<name_width$}  {} {:<w$}  {}",
+                entry.name,
                 entry.icon,
-                format!("{:<w$}", entry.branch, w = branch_width - 2),
+                entry.branch,
                 entry.status,
+                w = branch_width - 2,
             );
         }
     }
