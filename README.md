@@ -1,45 +1,98 @@
-# Orca
+# orca
 
-Orca is an attempt to create a parallel worktree based dev flow around composable pieces.
+A worktree-based toolkit for agentic development. Spin up isolated workspaces, monitor their status, sync files, and review changes — all from the CLI.
 
-A lot of the functionality is inspired by [Conductor](https://www.conductor.build/).
+## Quick start
 
-## Pieces
+```bash
+cd my-project
 
-- `orca` cli, the core cli that drives worktree functionality
+# create a workspace (creates a git worktree with a generated name)
+orca new
 
-## Workflow
+# optionally specify a branch name
+orca new --branch my-feature
 
-1. Start a new workspace from the current repo with `orca new --branch my-branch-name`
-2. Navigate to its workspace at `~/.orca/workspaces`
-3. Optionally start `orca watch` for automatic teardown on PR merge
-4. Check the status of other workspaces with `orca status` and jump to them if you need to work on them
-5. Once the agent has made changes, use the slash command `/critique` to open a web view of the diffs where you comment on the changes
-6. Complete your work and then run `orca rm` to clean up the workspace
+# check on all your workspaces
+orca status
+
+# clean up when done
+orca rm
+```
+
+Workspaces live in `~/.orca/workspaces/` and are backed by git worktrees.
+
+## Install
+
+### GitHub releases
+
+Download a prebuilt binary from [releases](https://github.com/SamYouatt/orca/releases).
+
+### From source
+
+```bash
+cargo install --path orca-cli
+```
+
+## Commands
+
+### Workspace management
+
+| Command | Description |
+|---------|-------------|
+| `orca new` | Create a new workspace |
+| `orca ls` | List all workspaces with their repo, branch, and creation date |
+| `orca status` | Show workspaces with git diff stats, upstream status, and PR info (requires `gh`) |
+| `orca rm` | Remove and teardown one or more workspaces |
+
+### Development
+
+| Command | Description |
+|---------|-------------|
+| `orca sync` | Live bidirectional file sync between the root repo and a workspace. Respects `.gitignore`, debounces changes, and restores the root on exit |
+| `orca critique` | Opens an interactive code review in the browser. Diffs your changes against the default branch and lets you annotate them |
+
+## Claude Code plugin
+
+Orca ships with a Claude Code plugin. Install it from the marketplace:
+
+```
+/plugin marketplace add SamYouatt/orca
+/plugin install orca
+```
+
+### `/critique`
+
+Opens an interactive code review in your browser where you can annotate the agent's changes. Your feedback is passed back to the agent as instructions to act on.
 
 ## Configuration
 
-Orca stores configuration in two places:
-- Overarching configuration is stored in `$HOME/.orca/settings.json`
-- Per project configuration is stored in `orca.json`
+Orca reads configuration from two places:
 
-### Options
+- **Global**: `~/.orca/settings.json`
+- **Per-project**: `orca.json` in the repo root
 
-#### Setup
-
-You may need to perform actions when workspaces are created and orca supports this by executing your provided script.
-
-Scripts will be sourced from both the root orca configuration and project configuration. Root orca configuration always runs and completes before beginning project configuration.
+Both support `setup` and `teardown` blocks:
 
 ```json
 {
   "setup": {
-    "script": "./my-script.sh",
+    "script": "./scripts/setup.sh"
+  },
+  "teardown": {
+    "script": "./scripts/teardown.sh"
   }
 }
 ```
 
-Setup scripts will be provided with the below environment variables set:
-- `$ORCA_WORKSPACE_NAME`: the generated workspace name that orca created or `--name` if specified
-- `$ORCA_BRANCH_NAME`: the branch name at time of creation, either the same as the workspace name or the provided `--branch` name
-- `$ORCA_WORKSPACE_PATH`: the path to the workspace
+Setup scripts run on `orca new`, teardown scripts run on `orca rm`. Global scripts run before/after project scripts respectively. Use `--no-script` to skip them.
+
+Scripts receive these environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `ORCA_WORKSPACE_NAME` | The generated workspace name |
+| `ORCA_BRANCH_NAME` | The branch name (same as workspace name unless `--branch` was used) |
+| `ORCA_WORKSPACE_PATH` | Absolute path to the workspace |
+
+See [COOKBOOK.md](COOKBOOK.md) for setup script examples and terminal integrations.
