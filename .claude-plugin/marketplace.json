@@ -1,0 +1,13 @@
+{
+  "name": "orca",
+  "owner": {
+    "name": "SamYouatt"
+  },
+  "plugins": [
+    {
+      "name": "orca",
+      "source": "./plugins/orca",
+      "description": "Code review and critique tools powered by Orca"
+    }
+  ]
+}
