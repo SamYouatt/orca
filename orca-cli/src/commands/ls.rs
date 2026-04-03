@@ -38,7 +38,7 @@ pub fn ls(base_dir: &Path) -> Result<()> {
         .max(11);
 
     let header = format!(
-        " 󰂽 {:<name_width$}  {:<rb_width$}  {:<16} ",
+        " {:<name_width$}  {:<rb_width$}  {:<16} ",
         "Name", "Repo/Branch", "Created"
     );
     println!("{}", theme::header(&header));
