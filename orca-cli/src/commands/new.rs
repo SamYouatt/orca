@@ -4,6 +4,7 @@ use std::path::Path;
 
 use crate::git;
 use crate::names;
+use crate::setup::{self, ScriptContext};
 use crate::theme;
 use crate::workspace;
 use crate::workspace::WorkspaceConfig;
@@ -18,11 +19,21 @@ pub fn new(base_dir: &Path, branch: Option<&str>) -> Result<()> {
     git::create_worktree(&repo, &worktree_path, branch)?;
 
     let config = WorkspaceConfig {
-        repo,
+        repo: repo.clone(),
         created: Utc::now(),
     };
 
     workspace::save(base_dir, &name, &config)?;
+
+    setup::run_setup_scripts(
+        base_dir,
+        &repo,
+        &ScriptContext {
+            workspace_name: &name,
+            branch_name: branch,
+            workspace_path: &worktree_path,
+        },
+    );
 
     println!(
         "Created workspace {} on branch {} at {}",

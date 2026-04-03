@@ -1,7 +1,9 @@
 pub mod commands;
+pub mod config;
 pub mod git;
 pub mod github;
 pub mod names;
+pub mod setup;
 pub mod sync;
 pub mod theme;
 pub mod workspace;
