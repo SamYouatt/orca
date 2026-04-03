@@ -233,7 +233,7 @@ export default function App() {
     <div className="h-screen flex flex-col">
       <header className="flex items-center justify-between px-4 py-2 border-b bg-card">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-sm">orca review</span>
+          <span className="font-semibold text-sm">Orca critique</span>
         </div>
         <DiffToggle
           current={diff.diffType}

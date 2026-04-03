@@ -14,12 +14,6 @@ use server::ReviewServer;
 pub fn critique(_base_dir: &Path) -> Result<()> {
     let default_branch = get_default_branch();
     let (initial_patch, initial_ref, initial_error) = run_diff("uncommitted", &default_branch);
-
-    if initial_patch.is_empty() && initial_error.is_none() {
-        println!("No changes to review.");
-        return Ok(());
-    }
-
     let server = ReviewServer::start(initial_patch, initial_ref, initial_error, default_branch)?;
 
     eprintln!("Review ready at {}", server.url);
