@@ -15,7 +15,7 @@ fn main() -> anyhow::Result<()> {
         }
         cli::Commands::Ls => commands::ls(&base_dir)?,
         cli::Commands::Status { porcelain } => commands::status(&base_dir, porcelain)?,
-        cli::Commands::Rm { names } => commands::rm(&base_dir, &names)?,
+        cli::Commands::Rm { names, no_script } => commands::rm(&base_dir, &names, no_script)?,
         cli::Commands::Collection => commands::collection(&base_dir)?,
         cli::Commands::Sync { workspace, verbose } => {
             commands::sync(&base_dir, workspace.as_deref(), verbose)?
