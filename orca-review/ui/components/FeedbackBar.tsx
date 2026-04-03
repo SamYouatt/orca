@@ -1,20 +1,15 @@
-import React, { useState } from "react";
+import React from "react";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 
 interface FeedbackBarProps {
   annotationCount: number;
+  copied: boolean;
   onSubmit: () => void;
   onCopyMarkdown: () => void;
 }
 
-export function FeedbackBar({ annotationCount, onSubmit, onCopyMarkdown }: FeedbackBarProps) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    onCopyMarkdown();
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+export function FeedbackBar({ annotationCount, copied, onSubmit, onCopyMarkdown }: FeedbackBarProps) {
 
   return (
     <footer className="border-t bg-card">
@@ -27,11 +22,11 @@ export function FeedbackBar({ annotationCount, onSubmit, onCopyMarkdown }: Feedb
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleCopy}>
-            {copied ? "Copied!" : "Copy Markdown"}
+          <Button variant="outline" size="sm" onClick={onCopyMarkdown}>
+            {copied ? "Copied!" : "Copy Markdown"} <Kbd>Mod+Shift+C</Kbd>
           </Button>
           <Button size="sm" onClick={onSubmit}>
-            Send Feedback
+            Send Feedback <Kbd className="border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground">Mod+Shift+Enter</Kbd>
           </Button>
         </div>
       </div>

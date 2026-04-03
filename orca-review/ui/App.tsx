@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import "./app.css";
 import type { Annotation } from "./types";
 import { DiffToggle } from "./components/DiffToggle";
@@ -169,8 +169,11 @@ export default function App() {
     setSubmitted(true);
   }, [annotations]);
 
+  const [copied, setCopied] = useState(false);
   const handleCopyMarkdown = useCallback(() => {
     navigator.clipboard.writeText(buildMarkdown());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }, [buildMarkdown]);
 
   const scrollToFile = useCallback((filePath: string) => {
@@ -178,6 +181,20 @@ export default function App() {
     const el = fileRefs.current.get(filePath);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
+
+  useEffect(() => {
+    const handleGlobalKeys = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "Enter") {
+        e.preventDefault();
+        handleSubmit();
+      } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "c" || e.key === "C")) {
+        e.preventDefault();
+        handleCopyMarkdown();
+      }
+    };
+    document.addEventListener("keydown", handleGlobalKeys);
+    return () => document.removeEventListener("keydown", handleGlobalKeys);
+  }, [handleSubmit, handleCopyMarkdown]);
 
   if (!diff) {
     return (
@@ -215,7 +232,7 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col">
       <header className="flex items-center justify-between px-4 py-2 border-b bg-card">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           <span className="font-semibold text-sm">orca review</span>
         </div>
         <DiffToggle
@@ -284,6 +301,7 @@ export default function App() {
 
       <FeedbackBar
         annotationCount={annotations.length}
+        copied={copied}
         onSubmit={handleSubmit}
         onCopyMarkdown={handleCopyMarkdown}
       />
