@@ -39,7 +39,7 @@ fn test_full_lifecycle() {
 
     std::env::set_current_dir(repo_dir.path()).unwrap();
 
-    commands::new(orca_dir.path(), None).unwrap();
+    commands::new(orca_dir.path(), None, false).unwrap();
 
     let workspaces = workspace::list_all(orca_dir.path()).unwrap();
     assert_eq!(workspaces.len(), 1);
@@ -74,7 +74,7 @@ fn test_rm_with_missing_worktree() {
 
     std::env::set_current_dir(repo_dir.path()).unwrap();
 
-    commands::new(orca_dir.path(), None).unwrap();
+    commands::new(orca_dir.path(), None, false).unwrap();
 
     let workspaces = workspace::list_all(orca_dir.path()).unwrap();
     let name = workspaces[0].0.clone();
@@ -122,7 +122,7 @@ fn test_new_with_custom_branch() {
 
     std::env::set_current_dir(repo_dir.path()).unwrap();
 
-    commands::new(orca_dir.path(), Some("feat/my-feature")).unwrap();
+    commands::new(orca_dir.path(), Some("feat/my-feature"), false).unwrap();
 
     let workspaces = workspace::list_all(orca_dir.path()).unwrap();
     assert_eq!(workspaces.len(), 1);
@@ -148,7 +148,7 @@ fn test_new_outside_git_repo() {
 
     std::env::set_current_dir(not_a_repo.path()).unwrap();
 
-    let result = commands::new(orca_dir.path(), None);
+    let result = commands::new(orca_dir.path(), None, false);
     assert!(result.is_err());
 }
 
@@ -184,7 +184,7 @@ fn test_new_runs_global_setup_script() {
     .unwrap();
 
     std::env::set_current_dir(repo_dir.path()).unwrap();
-    commands::new(orca_dir.path(), None).unwrap();
+    commands::new(orca_dir.path(), None, false).unwrap();
 
     assert!(marker.exists(), "global setup script should have run");
 }
@@ -208,7 +208,7 @@ fn test_new_runs_project_setup_script() {
     .unwrap();
 
     std::env::set_current_dir(repo_dir.path()).unwrap();
-    commands::new(orca_dir.path(), None).unwrap();
+    commands::new(orca_dir.path(), None, false).unwrap();
 
     assert!(marker.exists(), "project setup script should have run");
 }
@@ -242,7 +242,7 @@ fn test_global_setup_runs_before_project_setup() {
     .unwrap();
 
     std::env::set_current_dir(repo_dir.path()).unwrap();
-    commands::new(orca_dir.path(), None).unwrap();
+    commands::new(orca_dir.path(), None, false).unwrap();
 
     let contents = std::fs::read_to_string(&log).unwrap();
     let lines: Vec<&str> = contents.lines().collect();
@@ -512,7 +512,7 @@ fn test_sync_cleanup_restores_root() {
         .output()
         .unwrap();
 
-    commands::new(orca_dir.path(), None).unwrap();
+    commands::new(orca_dir.path(), None, false).unwrap();
     let workspaces = workspace::list_all(orca_dir.path()).unwrap();
     let (name, _config) = &workspaces[0];
     let worktree_path = workspace::worktree_path(orca_dir.path(), name);
