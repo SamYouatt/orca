@@ -36,7 +36,7 @@ export function FileList({ files, activeFile, annotations, onSelect }: FileListP
                 <span className="text-destructive">-{file.deletions}</span>
               )}
               {count > 0 && (
-                <Badge className="rounded-full w-4 h-4 p-0 text-[10px] font-bold ml-1">
+                <Badge className="rounded-full w-4 h-4 p-0 text-[10px] font-bold ml-1 bg-blue-500 text-white">
                   {count}
                 </Badge>
               )}

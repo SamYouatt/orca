@@ -41,27 +41,6 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-.hover-add-comment {
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  border: 1px solid var(--ring);
-  background: var(--muted);
-  color: var(--primary);
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  padding: 0;
-}
-
-.hover-add-comment:hover {
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
 
 @theme inline {
   --color-border: var(--border);

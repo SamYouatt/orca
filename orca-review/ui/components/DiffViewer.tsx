@@ -5,6 +5,7 @@ import { IconCheckboxFill, IconSquircleLg, IconChevronSm } from "@pierre/icons";
 import type { Annotation } from "../types";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 
 function AutoFocusTextarea(props: React.ComponentProps<typeof Textarea>) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -137,9 +138,9 @@ export function DiffViewer({
 
       if (editingId === annotationId) {
         return (
-          <div key={`edit-${annotationId}`} className="p-2 bg-muted border-l-2 border-primary">
+          <div key={`edit-${annotationId}`} className="p-3 bg-background font-sans">
             <AutoFocusTextarea
-              className="w-full bg-background rounded p-2 text-sm text-foreground resize-y"
+              className="w-full bg-background rounded p-2 text-sm font-sans text-foreground resize-y"
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
               onKeyDown={(e) =>
@@ -151,16 +152,16 @@ export function DiffViewer({
               }
               rows={2}
             />
-            <div className="flex gap-2 mt-1">
-              <Button size="sm" onClick={handleSaveEdit}>
-                Save
-              </Button>
+            <div className="flex gap-2 mt-3 justify-end">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => { setEditingId(null); setEditText(""); setPendingSelection(null); }}
               >
-                Cancel
+                Cancel <Kbd>Esc</Kbd>
+              </Button>
+              <Button size="sm" onClick={handleSaveEdit}>
+                Save <Kbd className="border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground">Mod+Enter</Kbd>
               </Button>
             </div>
           </div>
@@ -168,32 +169,32 @@ export function DiffViewer({
       }
 
       return (
-        <div className="p-2 bg-muted border-l-2 border-primary group flex items-start gap-2">
-          <div className="flex-1 text-sm whitespace-pre-wrap">{text}</div>
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setPendingSelection(null);
-                setPendingText("");
-                const ann = annotations.find((a) => a.id === annotationId);
-                if (ann) {
-                  setPendingSelection({ start: ann.lineStart, end: ann.lineEnd, side: ann.side });
-                }
-                setEditingId(annotationId);
-                setEditText(text);
-              }}
-            >
-              Edit
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => onDeleteAnnotation(annotationId)}
-            >
-              Delete
-            </Button>
+        <div className="bg-blue-50 dark:bg-blue-950/30 py-2 px-3 font-sans group">
+          <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2.5">
+            <div className="flex-1 text-sm whitespace-pre-wrap">{text}</div>
+            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => {
+                  setPendingSelection(null);
+                  setPendingText("");
+                  setEditingId(annotationId);
+                  setEditText(text);
+                }}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                onClick={() => onDeleteAnnotation(annotationId)}
+              >
+                Delete
+              </Button>
+            </div>
           </div>
         </div>
       );
@@ -201,26 +202,6 @@ export function DiffViewer({
     [editingId, editText, handleSaveEdit, handleKeyDown, onDeleteAnnotation, annotations]
   );
 
-  const renderHoverUtility = useCallback(
-    (getHoveredLine: () => { lineNumber: number; side: "deletions" | "additions" } | undefined) => {
-      const line = getHoveredLine();
-      if (!line) return null;
-
-      return (
-        <button
-          className="hover-add-comment"
-          onClick={(e) => {
-            e.stopPropagation();
-            setPendingSelection({ start: line.lineNumber, end: line.lineNumber, side: line.side });
-            setPendingText("");
-          }}
-        >
-          +
-        </button>
-      );
-    },
-    []
-  );
 
   useEffect(() => {
     setPendingSelection(null);
@@ -266,12 +247,12 @@ export function DiffViewer({
     (annotation: { side: string; lineNumber: number; metadata?: AnnotationMeta }) => {
       if (annotation.metadata?.annotationId === "__pending__") {
         return (
-          <div key={pendingLabel} className="p-2 bg-muted border-l-2 border-yellow-500">
+          <div key={pendingLabel} className="p-3 bg-background font-sans">
             {pendingLabel && (
-              <div className="text-xs text-muted-foreground mb-1">{pendingLabel}</div>
+              <div className="text-xs text-muted-foreground mb-1.5 font-sans">{pendingLabel}</div>
             )}
             <AutoFocusTextarea
-              className="w-full bg-background rounded p-2 text-sm text-foreground resize-y"
+              className="w-full bg-background rounded p-2 text-sm font-sans text-foreground resize-y"
               placeholder="Add a comment..."
               value={pendingText}
               onChange={(e) => setPendingText(e.target.value)}
@@ -284,16 +265,16 @@ export function DiffViewer({
               }
               rows={2}
             />
-            <div className="flex gap-2 mt-1">
-              <Button size="sm" onClick={handleSavePending}>
-                Comment
-              </Button>
+            <div className="flex gap-2 mt-3 justify-end">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => { setPendingSelection(null); setPendingText(""); }}
               >
-                Cancel
+                Cancel <Kbd>Esc</Kbd>
+              </Button>
+              <Button size="sm" onClick={handleSavePending}>
+                Comment <Kbd className="border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground">Mod+Enter</Kbd>
               </Button>
             </div>
           </div>
@@ -319,7 +300,7 @@ export function DiffViewer({
         themeType,
         diffStyle: "unified",
         enableLineSelection: true,
-        enableHoverUtility: true,
+        enableHoverUtility: false,
         hunkSeparators: "line-info",
         expansionLineCount: 20,
         collapsed,
@@ -328,7 +309,7 @@ export function DiffViewer({
       lineAnnotations={allAnnotations}
       selectedLines={pendingSelection ?? null}
       renderAnnotation={renderAnnotationWithPending}
-      renderHoverUtility={renderHoverUtility}
+
       renderHeaderPrefix={() => (
         <button
           type="button"
