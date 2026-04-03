@@ -23,10 +23,10 @@ export function FeedbackBar({ annotationCount, copied, onSubmit, onCopyMarkdown 
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={onCopyMarkdown}>
-            {copied ? "Copied!" : "Copy Markdown"} <Kbd>Mod+Shift+C</Kbd>
+            {copied ? "Copied!" : "Copy markdown"} <Kbd>Mod+Shift+C</Kbd>
           </Button>
           <Button size="sm" onClick={onSubmit}>
-            Send Feedback <Kbd className="border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground">Mod+Shift+Enter</Kbd>
+            Send feedback <Kbd className="border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground">Mod+Shift+Enter</Kbd>
           </Button>
         </div>
       </div>
