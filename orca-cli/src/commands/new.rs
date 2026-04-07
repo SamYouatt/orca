@@ -17,8 +17,11 @@ pub fn new(base_dir: &Path, branch: Option<&str>, no_script: bool) -> Result<()>
     let name = workspace::resolve_unique_name(base_dir, &catch.name);
     let branch = branch.unwrap_or(&name);
 
+    git::fetch_origin(&repo);
+    let start_point = git::remote_default_branch(&repo);
+
     let worktree_path = workspace::worktree_path(base_dir, &name);
-    git::create_worktree(&repo, &worktree_path, branch)?;
+    git::create_worktree(&repo, &worktree_path, branch, start_point.as_deref())?;
 
     let config = WorkspaceConfig {
         repo: repo.clone(),
