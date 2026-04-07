@@ -104,6 +104,11 @@ fn files_identical(a: &Path, b: &Path) -> bool {
 }
 
 pub fn copy_or_delete(src: &Path, dst: &Path, state: &SyncState) -> Result<bool> {
+    // skip directories — only files are synced individually
+    if src.exists() && !src.is_file() && !src.is_symlink() {
+        return Ok(false);
+    }
+
     if src.exists() && dst.exists() && files_identical(src, dst) {
         return Ok(false);
     }
