@@ -652,3 +652,112 @@ fn test_sync_cleanup_restores_root() {
         "original content"
     );
 }
+
+#[test]
+fn test_initial_scan_syncs_new_worktree_file() {
+    let root = tempdir().unwrap();
+    let worktree = tempdir().unwrap();
+
+    std::fs::write(root.path().join("shared.txt"), "same").unwrap();
+    std::fs::write(worktree.path().join("shared.txt"), "same").unwrap();
+    std::fs::write(worktree.path().join("new.txt"), "from worktree").unwrap();
+
+    let state = SyncState::new();
+    let root_filter = sync::build_filter(root.path()).unwrap();
+    let wt_filter = sync::build_filter(worktree.path()).unwrap();
+
+    let synced = sync::initial_scan(
+        &state,
+        root.path(),
+        worktree.path(),
+        &root_filter,
+        &wt_filter,
+        false,
+    );
+
+    assert_eq!(synced.len(), 1);
+    assert_eq!(synced[0].0, PathBuf::from("new.txt"));
+    assert_eq!(synced[0].1, Side::Worktree);
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("new.txt")).unwrap(),
+        "from worktree"
+    );
+}
+
+#[test]
+fn test_initial_scan_syncs_modified_worktree_file() {
+    let root = tempdir().unwrap();
+    let worktree = tempdir().unwrap();
+
+    std::fs::write(root.path().join("file.txt"), "original").unwrap();
+    std::fs::write(worktree.path().join("file.txt"), "modified").unwrap();
+
+    let state = SyncState::new();
+    let root_filter = sync::build_filter(root.path()).unwrap();
+    let wt_filter = sync::build_filter(worktree.path()).unwrap();
+
+    let synced = sync::initial_scan(
+        &state,
+        root.path(),
+        worktree.path(),
+        &root_filter,
+        &wt_filter,
+        false,
+    );
+
+    assert_eq!(synced.len(), 1);
+    assert_eq!(synced[0].1, Side::Worktree);
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("file.txt")).unwrap(),
+        "modified"
+    );
+}
+
+#[test]
+fn test_initial_scan_propagates_worktree_deletion() {
+    let root = tempdir().unwrap();
+    let worktree = tempdir().unwrap();
+
+    std::fs::write(root.path().join("deleted.txt"), "will be removed").unwrap();
+    // file does not exist in worktree
+
+    let state = SyncState::new();
+    let root_filter = sync::build_filter(root.path()).unwrap();
+    let wt_filter = sync::build_filter(worktree.path()).unwrap();
+
+    let synced = sync::initial_scan(
+        &state,
+        root.path(),
+        worktree.path(),
+        &root_filter,
+        &wt_filter,
+        false,
+    );
+
+    assert_eq!(synced.len(), 1);
+    assert!(!root.path().join("deleted.txt").exists());
+}
+
+#[test]
+fn test_initial_scan_skips_identical_files() {
+    let root = tempdir().unwrap();
+    let worktree = tempdir().unwrap();
+
+    std::fs::write(root.path().join("same.txt"), "identical").unwrap();
+    std::fs::write(worktree.path().join("same.txt"), "identical").unwrap();
+
+    let state = SyncState::new();
+    let root_filter = sync::build_filter(root.path()).unwrap();
+    let wt_filter = sync::build_filter(worktree.path()).unwrap();
+
+    let synced = sync::initial_scan(
+        &state,
+        root.path(),
+        worktree.path(),
+        &root_filter,
+        &wt_filter,
+        false,
+    );
+
+    assert!(synced.is_empty());
+}
