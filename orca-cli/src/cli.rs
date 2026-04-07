@@ -39,6 +39,9 @@ pub enum Commands {
         /// Show individual file sync events
         #[arg(short, long)]
         verbose: bool,
+        /// Allow sync even if root has uncommitted changes
+        #[arg(short, long)]
+        force: bool,
     },
     /// Open interactive code review in the browser
     Critique,
