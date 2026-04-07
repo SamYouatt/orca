@@ -14,8 +14,12 @@ pub fn get_default_branch() -> String {
 }
 
 fn git_diff(args: &[&str]) -> Result<String, String> {
+    let mut full_args = args.to_vec();
+    // Force standard a/ b/ prefixes regardless of diff.mnemonicPrefix config
+    full_args.push("--src-prefix=a/");
+    full_args.push("--dst-prefix=b/");
     Command::new("git")
-        .args(args)
+        .args(&full_args)
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
         .map_err(|e| e.to_string())
@@ -38,7 +42,12 @@ pub fn run_diff(diff_type: &str, default_branch: &str) -> (String, String, Optio
                     );
                 }
                 match git_diff(&["diff", &base.to_string()]) {
-                    Ok(patch) => (patch, format!("vs {default_branch}"), None),
+                    Ok(mut patch) => {
+                        if let Ok(untracked) = untracked_file_patches() {
+                            patch.push_str(&untracked);
+                        }
+                        (patch, format!("vs {default_branch}"), None)
+                    }
                     Err(e) => (String::new(), format!("vs {default_branch}"), Some(e)),
                 }
             }
@@ -50,10 +59,46 @@ pub fn run_diff(diff_type: &str, default_branch: &str) -> (String, String, Optio
         };
     }
 
-    match git_diff(&["diff"]) {
-        Ok(patch) => (patch, "Unstaged changes".to_string(), None),
-        Err(e) => (String::new(), String::new(), Some(e)),
+    let mut patch = match git_diff(&["diff"]) {
+        Ok(p) => p,
+        Err(e) => return (String::new(), String::new(), Some(e)),
+    };
+
+    // Include untracked files as new file diffs
+    if let Ok(untracked) = untracked_file_patches() {
+        patch.push_str(&untracked);
     }
+
+    (patch, "Unstaged changes".to_string(), None)
+}
+
+fn untracked_file_patches() -> Result<String, String> {
+    let output = Command::new("git")
+        .args(["ls-files", "--others", "--exclude-standard"])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    let files = String::from_utf8_lossy(&output.stdout);
+    let mut patches = String::new();
+
+    for file in files.lines().filter(|l| !l.is_empty()) {
+        let content = match std::fs::read_to_string(file) {
+            Ok(c) => c,
+            Err(_) => continue, // skip binary/unreadable files
+        };
+
+        let line_count = content.lines().count();
+        patches.push_str(&format!("diff --git a/{file} b/{file}\n"));
+        patches.push_str("new file mode 100644\n");
+        patches.push_str(&format!("--- /dev/null\n"));
+        patches.push_str(&format!("+++ b/{file}\n"));
+        patches.push_str(&format!("@@ -0,0 +1,{line_count} @@\n"));
+        for line in content.lines() {
+            patches.push_str(&format!("+{line}\n"));
+        }
+    }
+
+    Ok(patches)
 }
 
 use super::types::FileContents;
@@ -78,16 +123,9 @@ pub fn get_all_file_contents(
         .lines()
         .filter(|l| l.starts_with("diff --git "))
         .filter_map(|l| {
-            // Handle arbitrary single-char prefixes (a/b, i/w, etc.)
-            l.strip_prefix("diff --git ").and_then(|rest| {
-                let parts: Vec<&str> = rest.splitn(2, ' ').collect();
-                if parts.len() == 2 {
-                    // Strip the single-char prefix (e.g. "b/path" -> "path")
-                    parts[1].get(2..).map(|s| s.to_string())
-                } else {
-                    None
-                }
-            })
+            l.strip_prefix("diff --git ")
+                .and_then(|rest| rest.split(" b/").nth(1))
+                .map(|s| s.to_string())
         })
         .collect();
 

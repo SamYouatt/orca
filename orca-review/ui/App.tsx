@@ -39,7 +39,7 @@ function parseDiffToFiles(rawPatch: string, serverFiles: ServerFileContents[]): 
 
   for (const chunk of fileChunks) {
     const lines = chunk.split("\n");
-    const headerMatch = lines[0]?.match(/\w\/(.+) \w\/(.+)/);
+    const headerMatch = lines[0]?.match(/a\/(.+) b\/(.+)/);
     if (!headerMatch) continue;
 
     const oldPath = headerMatch[1];
