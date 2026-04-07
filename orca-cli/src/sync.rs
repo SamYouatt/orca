@@ -292,6 +292,21 @@ fn cleanup_root(root: &Path, root_written: &HashSet<PathBuf>) {
     }
 }
 
+fn walk_non_ignored<'a>(
+    dir: &'a Path,
+    filter: &'a Gitignore,
+) -> impl Iterator<Item = (PathBuf, PathBuf)> + 'a {
+    WalkDir::new(dir)
+        .into_iter()
+        .filter_entry(move |e| !is_ignored(filter, dir, e.path()))
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .filter_map(move |e| {
+            let path = e.into_path();
+            relative_path(dir, &path).map(|rel| (path, rel))
+        })
+}
+
 pub fn initial_scan(
     state: &SyncState,
     root: &Path,
@@ -301,41 +316,21 @@ pub fn initial_scan(
     verbose: bool,
 ) -> Vec<(PathBuf, Side)> {
     let mut worktree_files: HashSet<PathBuf> = HashSet::new();
+    let mut changed = 0usize;
+    let mut scanned = 0usize;
+
+    print!("  {} scanning worktree...", theme::grey("○"));
 
     // walk worktree for files that are new or different from root
-    for entry in WalkDir::new(worktree).into_iter().filter_map(|e| e.ok()) {
-        if !entry.file_type().is_file() {
-            continue;
+    for (path, rel) in walk_non_ignored(worktree, wt_filter) {
+        scanned += 1;
+        if scanned.is_multiple_of(500) {
+            eprint!("\r  {} scanning worktree... {} files", theme::grey("○"), scanned);
         }
-        let path = entry.path();
-        if is_ignored(wt_filter, worktree, path) {
-            continue;
-        }
-        if let Some(rel) = relative_path(worktree, path) {
-            worktree_files.insert(rel.clone());
-            let root_path = root.join(&rel);
-            if !root_path.exists() || !files_identical(path, &root_path) {
-                state
-                    .pending
-                    .lock()
-                    .unwrap()
-                    .insert(rel, (Instant::now() - Duration::from_secs(1), PendingSide::One(Side::Worktree)));
-            }
-        }
-    }
-
-    // walk root for files deleted in worktree
-    for entry in WalkDir::new(root).into_iter().filter_map(|e| e.ok()) {
-        if !entry.file_type().is_file() {
-            continue;
-        }
-        let path = entry.path();
-        if is_ignored(root_filter, root, path) {
-            continue;
-        }
-        if let Some(rel) = relative_path(root, path)
-            && !worktree_files.contains(&rel)
-        {
+        worktree_files.insert(rel.clone());
+        let root_path = root.join(&rel);
+        if !root_path.exists() || !files_identical(&path, &root_path) {
+            changed += 1;
             state
                 .pending
                 .lock()
@@ -343,6 +338,38 @@ pub fn initial_scan(
                 .insert(rel, (Instant::now() - Duration::from_secs(1), PendingSide::One(Side::Worktree)));
         }
     }
+
+    eprint!("\r  {} scanning root...    {} files", theme::grey("○"), scanned);
+
+    // walk root for files deleted in worktree
+    for (_path, rel) in walk_non_ignored(root, root_filter) {
+        scanned += 1;
+        if scanned.is_multiple_of(500) {
+            eprint!("\r  {} scanning root... {} files", theme::grey("○"), scanned);
+        }
+        if !worktree_files.contains(&rel) {
+            changed += 1;
+            state
+                .pending
+                .lock()
+                .unwrap()
+                .insert(rel, (Instant::now() - Duration::from_secs(1), PendingSide::One(Side::Worktree)));
+        }
+    }
+
+    // clear the progress line
+    eprint!("\r{}\r", " ".repeat(60));
+
+    if changed == 0 {
+        println!("  {} no existing changes found", theme::grey("○"));
+        return Vec::new();
+    }
+
+    println!(
+        "  {} found {} changed files, syncing...",
+        theme::blue("⟳"),
+        changed,
+    );
 
     sync_once(state, root, worktree, root_filter, wt_filter, verbose)
 }
