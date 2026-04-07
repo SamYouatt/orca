@@ -324,7 +324,7 @@ pub fn initial_scan(
     // walk worktree for files that are new or different from root
     for (path, rel) in walk_non_ignored(worktree, wt_filter) {
         scanned += 1;
-        if scanned % 500 == 0 {
+        if scanned.is_multiple_of(500) {
             eprint!("\r  {} scanning worktree... {} files", theme::grey("○"), scanned);
         }
         worktree_files.insert(rel.clone());
@@ -344,7 +344,7 @@ pub fn initial_scan(
     // walk root for files deleted in worktree
     for (_path, rel) in walk_non_ignored(root, root_filter) {
         scanned += 1;
-        if scanned % 500 == 0 {
+        if scanned.is_multiple_of(500) {
             eprint!("\r  {} scanning root... {} files", theme::grey("○"), scanned);
         }
         if !worktree_files.contains(&rel) {
