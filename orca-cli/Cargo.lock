@@ -754,6 +754,7 @@ dependencies = [
  "serial_test",
  "tempfile",
  "tiny_http",
+ "walkdir",
 ]
 
 [[package]]

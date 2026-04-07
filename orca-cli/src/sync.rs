@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 use anyhow::{Result, bail};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use notify::{EventKind, RecursiveMode, Watcher, recommended_watcher};
+use walkdir::WalkDir;
 
 use crate::{git, theme};
 
@@ -291,6 +292,61 @@ fn cleanup_root(root: &Path, root_written: &HashSet<PathBuf>) {
     }
 }
 
+pub fn initial_scan(
+    state: &SyncState,
+    root: &Path,
+    worktree: &Path,
+    root_filter: &Gitignore,
+    wt_filter: &Gitignore,
+    verbose: bool,
+) -> Vec<(PathBuf, Side)> {
+    let mut worktree_files: HashSet<PathBuf> = HashSet::new();
+
+    // walk worktree for files that are new or different from root
+    for entry in WalkDir::new(worktree).into_iter().filter_map(|e| e.ok()) {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.path();
+        if is_ignored(wt_filter, worktree, path) {
+            continue;
+        }
+        if let Some(rel) = relative_path(worktree, path) {
+            worktree_files.insert(rel.clone());
+            let root_path = root.join(&rel);
+            if !root_path.exists() || !files_identical(path, &root_path) {
+                state
+                    .pending
+                    .lock()
+                    .unwrap()
+                    .insert(rel, (Instant::now() - Duration::from_secs(1), PendingSide::One(Side::Worktree)));
+            }
+        }
+    }
+
+    // walk root for files deleted in worktree
+    for entry in WalkDir::new(root).into_iter().filter_map(|e| e.ok()) {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.path();
+        if is_ignored(root_filter, root, path) {
+            continue;
+        }
+        if let Some(rel) = relative_path(root, path)
+            && !worktree_files.contains(&rel)
+        {
+            state
+                .pending
+                .lock()
+                .unwrap()
+                .insert(rel, (Instant::now() - Duration::from_secs(1), PendingSide::One(Side::Worktree)));
+        }
+    }
+
+    sync_once(state, root, worktree, root_filter, wt_filter, verbose)
+}
+
 fn make_watcher(
     base: PathBuf,
     state: Arc<SyncState>,
@@ -350,6 +406,17 @@ pub fn run(root: &Path, worktree: &Path, verbose: bool) -> Result<()> {
     let wt_filter = build_filter(worktree)?;
 
     let state = Arc::new(SyncState::new());
+
+    let synced = initial_scan(&state, root, worktree, &root_filter, &wt_filter, verbose);
+    if !synced.is_empty() {
+        println!(
+            "  {} synced {} existing changes",
+            theme::green("✓"),
+            synced.len(),
+        );
+        println!();
+    }
+
     let shutdown = Arc::new(AtomicBool::new(false));
 
     let shutdown_flag = shutdown.clone();

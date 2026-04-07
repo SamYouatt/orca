@@ -1,9 +1,9 @@
 use anyhow::Result;
 use std::path::Path;
 
-use crate::{sync, theme, workspace};
+use crate::{git, sync, theme, workspace};
 
-pub fn sync(base_dir: &Path, name: Option<&str>, verbose: bool) -> Result<()> {
+pub fn sync(base_dir: &Path, name: Option<&str>, verbose: bool, force: bool) -> Result<()> {
     let name = match name {
         Some(n) => n.to_string(),
         None => workspace::detect_current(base_dir).ok_or_else(|| {
@@ -14,6 +14,12 @@ pub fn sync(base_dir: &Path, name: Option<&str>, verbose: bool) -> Result<()> {
     };
     let config = workspace::load(base_dir, &name)?;
     let worktree_path = workspace::worktree_path(base_dir, &name);
+
+    if !force && git::has_uncommitted_changes(&config.repo) {
+        anyhow::bail!(
+            "root repo has uncommitted changes — commit or stash them first, or use --force to sync anyway"
+        );
+    }
 
     println!(
         "  {} syncing {} {} ↔ {}",
