@@ -78,9 +78,16 @@ pub fn get_all_file_contents(
         .lines()
         .filter(|l| l.starts_with("diff --git "))
         .filter_map(|l| {
-            l.strip_prefix("diff --git ")
-                .and_then(|rest| rest.split(" b/").nth(1))
-                .map(|s| s.to_string())
+            // Handle arbitrary single-char prefixes (a/b, i/w, etc.)
+            l.strip_prefix("diff --git ").and_then(|rest| {
+                let parts: Vec<&str> = rest.splitn(2, ' ').collect();
+                if parts.len() == 2 {
+                    // Strip the single-char prefix (e.g. "b/path" -> "path")
+                    parts[1].get(2..).map(|s| s.to_string())
+                } else {
+                    None
+                }
+            })
         })
         .collect();
 
