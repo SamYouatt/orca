@@ -18,19 +18,70 @@ pub fn repo_root() -> Result<PathBuf> {
     Ok(PathBuf::from(path))
 }
 
-pub fn create_worktree(repo: &Path, worktree_path: &Path, branch: &str) -> Result<()> {
+pub fn fetch_origin(repo: &Path) -> bool {
+    Command::new("git")
+        .args(["-C", &repo.display().to_string(), "fetch", "origin"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Returns the remote default branch ref (e.g. "origin/main") if available.
+pub fn remote_default_branch(repo: &Path) -> Option<String> {
     let output = Command::new("git")
         .args([
             "-C",
             &repo.display().to_string(),
-            "worktree",
-            "add",
-            "-b",
-            branch,
-            &worktree_path.display().to_string(),
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "--short",
         ])
         .output()
-        .context("failed to run git worktree add")?;
+        .ok()?;
+
+    if output.status.success() {
+        let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !branch.is_empty() {
+            return Some(branch);
+        }
+    }
+
+    // fallback: try origin/main then origin/master
+    for candidate in &["origin/main", "origin/master"] {
+        let check = Command::new("git")
+            .args([
+                "-C",
+                &repo.display().to_string(),
+                "rev-parse",
+                "--verify",
+                candidate,
+            ])
+            .output()
+            .ok();
+        if check.map(|o| o.status.success()).unwrap_or(false) {
+            return Some(candidate.to_string());
+        }
+    }
+
+    None
+}
+
+pub fn create_worktree(
+    repo: &Path,
+    worktree_path: &Path,
+    branch: &str,
+    start_point: Option<&str>,
+) -> Result<()> {
+    let repo_str = repo.display().to_string();
+    let wt_str = worktree_path.display().to_string();
+
+    let mut cmd = Command::new("git");
+    cmd.args(["-C", &repo_str, "worktree", "add", "-b", branch, &wt_str]);
+    if let Some(sp) = start_point {
+        cmd.arg(sp);
+    }
+
+    let output = cmd.output().context("failed to run git worktree add")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
