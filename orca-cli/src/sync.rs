@@ -333,14 +333,14 @@ pub fn initial_scan(
         if is_ignored(root_filter, root, path) {
             continue;
         }
-        if let Some(rel) = relative_path(root, path) {
-            if !worktree_files.contains(&rel) {
-                state
-                    .pending
-                    .lock()
-                    .unwrap()
-                    .insert(rel, (Instant::now() - Duration::from_secs(1), PendingSide::One(Side::Worktree)));
-            }
+        if let Some(rel) = relative_path(root, path)
+            && !worktree_files.contains(&rel)
+        {
+            state
+                .pending
+                .lock()
+                .unwrap()
+                .insert(rel, (Instant::now() - Duration::from_secs(1), PendingSide::One(Side::Worktree)));
         }
     }
 
