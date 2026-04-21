@@ -44,12 +44,21 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-latest
             name: orca-aarch64-apple-darwin
+            build_command: cargo build --release --target aarch64-apple-darwin
           - target: x86_64-apple-darwin
             os: macos-latest
             name: orca-x86_64-apple-darwin
+            build_command: cargo build --release --target x86_64-apple-darwin
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             name: orca-x86_64-unknown-linux-gnu
+            build_command: cargo zigbuild --release --target x86_64-unknown-linux-gnu
+            uses_zig: true
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: orca-aarch64-unknown-linux-gnu
+            build_command: cargo zigbuild --release --target aarch64-unknown-linux-gnu
+            uses_zig: true
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -60,9 +69,21 @@ jobs:
         run: |
           rustup target add ${{ matrix.target }}
 
+      - name: Install Zig
+        if: ${{ matrix.uses_zig }}
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.15.1
+
+      - name: Install cargo-zigbuild
+        if: ${{ matrix.uses_zig }}
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+
       - name: Build
         working-directory: orca-cli
-        run: cargo build --release --target ${{ matrix.target }}
+        run: ${{ matrix.build_command }}
 
       - name: Package
         run: |
