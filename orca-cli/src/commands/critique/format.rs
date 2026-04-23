@@ -7,7 +7,7 @@ pub fn format_feedback(payload: &FeedbackPayload) -> String {
         return "Code review completed — no changes requested.".to_string();
     }
 
-    let mut parts = vec!["# Code Review Feedback\n".to_string()];
+    let mut parts = vec!["# Code Review Feedback".to_string()];
 
     if !payload.overall_comment.is_empty() {
         parts.push(payload.overall_comment.clone());
@@ -20,7 +20,7 @@ pub fn format_feedback(payload: &FeedbackPayload) -> String {
         }
 
         for (file_path, mut anns) in grouped {
-            parts.push(format!("## {file_path}\n"));
+            parts.push(format!("## {file_path}"));
             anns.sort_by_key(|a| a.line_start);
             for ann in anns {
                 let line_range = if ann.line_start == ann.line_end {
@@ -33,6 +33,6 @@ pub fn format_feedback(payload: &FeedbackPayload) -> String {
         }
     }
 
-    parts.push("\nAddress all feedback above.".to_string());
+    parts.push("Address all feedback above.".to_string());
     parts.join("\n\n")
 }
