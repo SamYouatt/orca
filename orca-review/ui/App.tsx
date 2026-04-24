@@ -136,7 +136,7 @@ export default function App() {
   const buildMarkdown = useCallback(() => {
     if (annotations.length === 0) return "Code review completed — no changes requested.";
 
-    const parts: string[] = ["# Code Review Feedback\n"];
+    const parts: string[] = ["# Code Review Feedback"];
     const grouped = new Map<string, Annotation[]>();
     for (const ann of annotations) {
       const existing = grouped.get(ann.filePath) || [];
@@ -145,7 +145,7 @@ export default function App() {
     }
 
     for (const [filePath, fileAnns] of grouped) {
-      parts.push(`## ${filePath}\n`);
+      parts.push(`## ${filePath}`);
       const sorted = [...fileAnns].sort((a, b) => a.lineStart - b.lineStart);
       for (const ann of sorted) {
         const range =
@@ -156,7 +156,7 @@ export default function App() {
       }
     }
 
-    parts.push("\nAddress all feedback above.");
+    parts.push("Address all feedback above.");
     return parts.join("\n\n");
   }, [annotations]);
 
@@ -170,11 +170,16 @@ export default function App() {
   }, [annotations]);
 
   const [copied, setCopied] = useState(false);
-  const handleCopyMarkdown = useCallback(() => {
+  const handleCopyMarkdown = useCallback(async () => {
     navigator.clipboard.writeText(buildMarkdown());
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [buildMarkdown]);
+    await fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ overallComment: "", annotations }),
+    });
+    setSubmitted(true);
+  }, [buildMarkdown, annotations]);
 
   const scrollToFile = useCallback((filePath: string) => {
     setActiveFile(filePath);
