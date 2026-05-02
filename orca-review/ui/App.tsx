@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import "./app.css";
 import type { Annotation } from "./types";
 import { DiffToggle } from "./components/DiffToggle";
+import { ViewStyleToggle } from "./components/ViewStyleToggle";
 import { FileList } from "./components/FileList";
 import { DiffViewer } from "./components/DiffViewer";
 import { FeedbackBar } from "./components/FeedbackBar";
@@ -77,6 +78,9 @@ export default function App() {
   const [submitted, setSubmitted] = useState(false);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [diffStyle, setDiffStyle] = useState<"unified" | "split">(
+    () => window.innerWidth >= 1400 ? "split" : "unified"
+  );
   const theme = useTheme();
 
   useEffect(() => {
@@ -240,12 +244,15 @@ export default function App() {
         <div className="flex items-center gap-2">
           <span className="font-semibold text-sm">Orca critique</span>
         </div>
-        <DiffToggle
-          current={diff.diffType}
-          defaultBranch={diff.defaultBranch}
-          switching={switching}
-          onSwitch={handleSwitch}
-        />
+        <div className="flex items-center gap-2">
+          <ViewStyleToggle current={diffStyle} onChange={setDiffStyle} />
+          <DiffToggle
+            current={diff.diffType}
+            defaultBranch={diff.defaultBranch}
+            switching={switching}
+            onSwitch={handleSwitch}
+          />
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -281,6 +288,7 @@ export default function App() {
                     annotations={annotations.filter(
                       (a) => a.filePath === file.path
                     )}
+                    diffStyle={diffStyle}
                     themeType={theme}
                     viewed={viewedFiles.has(file.path)}
                     onToggleViewed={() =>

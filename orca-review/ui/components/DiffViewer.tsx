@@ -33,6 +33,7 @@ interface DiffViewerProps {
   oldContent?: string | null;
   newContent?: string | null;
   annotations: Annotation[];
+  diffStyle: "unified" | "split";
   themeType: "dark" | "light";
   viewed: boolean;
   onToggleViewed: () => void;
@@ -48,6 +49,7 @@ export function DiffViewer({
   oldContent,
   newContent,
   annotations,
+  diffStyle,
   themeType,
   viewed,
   onToggleViewed,
@@ -298,7 +300,7 @@ export function DiffViewer({
       fileDiff={fileDiff}
       options={{
         themeType,
-        diffStyle: "unified",
+        diffStyle,
         enableLineSelection: true,
         enableHoverUtility: false,
         hunkSeparators: "line-info",
