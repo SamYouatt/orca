@@ -106,3 +106,12 @@ export function countFileDescendants(node: TreeNode): number {
   for (const child of node.children) total += countFileDescendants(child);
   return total;
 }
+
+export function flattenTreeFiles(nodes: TreeNode[]): TreeFile[] {
+  const out: TreeFile[] = [];
+  for (const node of nodes) {
+    if (node.kind === "file") out.push(node.file);
+    else out.push(...flattenTreeFiles(node.children));
+  }
+  return out;
+}

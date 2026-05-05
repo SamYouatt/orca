@@ -1,8 +1,7 @@
-import React from "react";
 import { IconChevronSm } from "@pierre/icons";
 import type { Annotation } from "../types";
 import type { TreeFile, TreeNode } from "../lib/fileTree";
-import { buildFileTree, countFileDescendants } from "../lib/fileTree";
+import { countFileDescendants } from "../lib/fileTree";
 import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
@@ -14,7 +13,7 @@ const INDENT_PX = 16;
 const ROW_BASE_PX = 8;
 
 interface FileTreeProps {
-  files: TreeFile[];
+  tree: TreeNode[];
   activeFile: string | null;
   annotations: Annotation[];
   collapsed: Set<string>;
@@ -23,14 +22,13 @@ interface FileTreeProps {
 }
 
 export function FileTree({
-  files,
+  tree,
   activeFile,
   annotations,
   collapsed,
   onToggleDir,
   onSelectFile,
 }: FileTreeProps) {
-  const tree = React.useMemo(() => buildFileTree(files), [files]);
   return (
     <div className="py-2">
       {tree.map((node) => (
