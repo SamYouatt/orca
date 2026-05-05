@@ -2,7 +2,7 @@ import React from "react";
 import { IconChevronSm } from "@pierre/icons";
 import type { Annotation } from "../types";
 import type { TreeFile, TreeNode } from "../lib/fileTree";
-import { buildFileTree } from "../lib/fileTree";
+import { buildFileTree, countFileDescendants } from "../lib/fileTree";
 import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
@@ -99,6 +99,11 @@ function TreeRow({
         <span className="truncate flex-1 ml-0.5">
           {node.segments.join("/")}
         </span>
+        {!isOpen && (
+          <span className="ml-2 text-xs text-muted-foreground shrink-0">
+            {countFileDescendants(node)}
+          </span>
+        )}
       </CollapsibleTrigger>
       <CollapsibleContent>
         {node.children.map((child) => (

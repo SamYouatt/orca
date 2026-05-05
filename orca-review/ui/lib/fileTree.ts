@@ -99,3 +99,10 @@ export function buildFileTree(files: TreeFile[]): TreeNode[] {
   }
   return toTreeNodes(raw);
 }
+
+export function countFileDescendants(node: TreeNode): number {
+  if (node.kind === "file") return 1;
+  let total = 0;
+  for (const child of node.children) total += countFileDescendants(child);
+  return total;
+}
