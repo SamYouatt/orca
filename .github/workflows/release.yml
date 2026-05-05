@@ -2,8 +2,8 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -11,33 +11,30 @@ permissions:
 jobs:
   check-version:
     runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
     steps:
       - uses: actions/checkout@v5
 
-      - name: Extract tag version
-        id: tag
-        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-
-      - name: Check release doesn't already exist
+      - name: Detect new version
+        id: check
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "${{ steps.tag.outputs.version }}" &>/dev/null; then
-            echo "::error::Release ${{ steps.tag.outputs.version }} already exists. Bump the version."
-            exit 1
-          fi
-
-      - name: Check tag matches Cargo.toml version
-        run: |
-          cargo_version="v$(grep '^version' orca-cli/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
-          tag_version="${{ steps.tag.outputs.version }}"
-          if [ "$cargo_version" != "$tag_version" ]; then
-            echo "::error::Tag $tag_version does not match Cargo.toml version $cargo_version"
-            exit 1
+          version="v$(grep '^version' orca-cli/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+          if gh release view "$version" --repo "$GITHUB_REPOSITORY" &>/dev/null; then
+            echo "Release $version already exists, skipping."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New version detected: $version"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
           fi
 
   build:
     needs: check-version
+    if: needs.check-version.outputs.should_release == 'true'
     strategy:
       matrix:
         include:
@@ -98,7 +95,7 @@ jobs:
           path: ${{ matrix.name }}.tar.gz
 
   release:
-    needs: build
+    needs: [check-version, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -112,7 +109,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" \
-            --title "${{ github.ref_name }}" \
+          gh release create "${{ needs.check-version.outputs.version }}" \
+            --title "${{ needs.check-version.outputs.version }}" \
+            --target "$GITHUB_SHA" \
             --generate-notes \
             *.tar.gz
