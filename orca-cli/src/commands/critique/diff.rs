@@ -90,7 +90,7 @@ fn untracked_file_patches() -> Result<String, String> {
         let line_count = content.lines().count();
         patches.push_str(&format!("diff --git a/{file} b/{file}\n"));
         patches.push_str("new file mode 100644\n");
-        patches.push_str(&format!("--- /dev/null\n"));
+        patches.push_str("--- /dev/null\n");
         patches.push_str(&format!("+++ b/{file}\n"));
         patches.push_str(&format!("@@ -0,0 +1,{line_count} @@\n"));
         for line in content.lines() {
