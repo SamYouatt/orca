@@ -3,7 +3,7 @@ import "./app.css";
 import type { Annotation } from "./types";
 import { DiffToggle } from "./components/DiffToggle";
 import { ViewStyleToggle } from "./components/ViewStyleToggle";
-import { FileList } from "./components/FileList";
+import { FileTree } from "./components/FileTree";
 import { DiffViewer } from "./components/DiffViewer";
 import { FeedbackBar } from "./components/FeedbackBar";
 import { useTheme } from "./hooks/useTheme";
@@ -77,6 +77,7 @@ export default function App() {
   const [switching, setSwitching] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
+  const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [diffStyle, setDiffStyle] = useState<"unified" | "split">(
     () => window.innerWidth >= 1400 ? "split" : "unified"
@@ -109,6 +110,7 @@ export default function App() {
         setFiles(parsed);
         setAnnotations([]);
         setViewedFiles(new Set());
+        setCollapsedDirs(new Set());
         setActiveFile(parsed.length > 0 ? parsed[0].path : null);
       } finally {
         setSwitching(false);
@@ -257,11 +259,20 @@ export default function App() {
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="w-64 border-r bg-card overflow-y-auto shrink-0">
-          <FileList
+          <FileTree
             files={files}
             activeFile={activeFile}
             annotations={annotations}
-            onSelect={scrollToFile}
+            collapsed={collapsedDirs}
+            onToggleDir={(path) =>
+              setCollapsedDirs((prev) => {
+                const next = new Set(prev);
+                if (next.has(path)) next.delete(path);
+                else next.add(path);
+                return next;
+              })
+            }
+            onSelectFile={scrollToFile}
           />
         </aside>
 
