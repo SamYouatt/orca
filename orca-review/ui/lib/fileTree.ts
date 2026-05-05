@@ -59,6 +59,23 @@ function sortChildren(nodes: TreeNode[]): TreeNode[] {
   return [...dirs, ...files];
 }
 
+function compact(dir: DirBuilder): DirBuilder {
+  for (const [key, child] of dir.childDirs) {
+    const compactedChild = compact(child);
+    dir.childDirs.set(key, compactedChild);
+  }
+  if (dir.childFiles.length === 0 && dir.childDirs.size === 1) {
+    const [onlyChild] = dir.childDirs.values();
+    return {
+      path: onlyChild.path,
+      segments: [...dir.segments, ...onlyChild.segments],
+      childDirs: onlyChild.childDirs,
+      childFiles: onlyChild.childFiles,
+    };
+  }
+  return dir;
+}
+
 function toTreeNodes(dir: DirBuilder): TreeNode[] {
   const children: TreeNode[] = [];
   for (const child of dir.childDirs.values()) {
@@ -77,5 +94,8 @@ function toTreeNodes(dir: DirBuilder): TreeNode[] {
 
 export function buildFileTree(files: TreeFile[]): TreeNode[] {
   const raw = buildRaw(files);
+  for (const [key, child] of raw.childDirs) {
+    raw.childDirs.set(key, compact(child));
+  }
   return toTreeNodes(raw);
 }
