@@ -88,7 +88,7 @@ function TreeRow({
       onOpenChange={() => onToggleDir(node.path)}
     >
       <CollapsibleTrigger
-        className="w-full flex items-center text-left text-sm font-normal hover:bg-muted py-1.5 pr-3 cursor-pointer"
+        className="w-full flex items-center text-left text-sm font-normal text-muted-foreground hover:bg-muted py-1.5 pr-3 cursor-pointer"
         style={{ paddingLeft: depth * INDENT_PX + ROW_BASE_PX }}
       >
         <IconChevronSm
