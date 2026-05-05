@@ -65,11 +65,9 @@ fn card_empty(color_bg: bool) {
 }
 
 fn bar(width: usize, caught: usize, total: usize, rarity: Option<Rarity>) -> String {
-    let filled = if total == 0 {
-        0
-    } else {
-        ((caught * width) / total).min(width)
-    };
+    let filled = (caught * width)
+        .checked_div(total)
+        .map_or(0, |f| f.min(width));
     let empty = width - filled;
     let filled_str = "█".repeat(filled);
     let empty_str = "░".repeat(empty);
@@ -191,7 +189,7 @@ pub fn collection(base_dir: &Path) -> Result<()> {
         print_catches(&by_rarity, color_bg);
         card_empty(color_bg);
 
-        all_catches.sort_by(|a, b| b.1.caught_at.cmp(&a.1.caught_at));
+        all_catches.sort_by_key(|b| std::cmp::Reverse(b.1.caught_at));
         all_catches.truncate(5);
 
         card_line(&theme::black_bold("Recent catches").to_string(), color_bg);

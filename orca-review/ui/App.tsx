@@ -3,10 +3,11 @@ import "./app.css";
 import type { Annotation } from "./types";
 import { DiffToggle } from "./components/DiffToggle";
 import { ViewStyleToggle } from "./components/ViewStyleToggle";
-import { FileList } from "./components/FileList";
+import { FileTree } from "./components/FileTree";
 import { DiffViewer } from "./components/DiffViewer";
 import { FeedbackBar } from "./components/FeedbackBar";
 import { useTheme } from "./hooks/useTheme";
+import { buildFileTree, flattenTreeFiles } from "./lib/fileTree";
 
 interface ServerFileContents {
   path: string;
@@ -77,22 +78,44 @@ export default function App() {
   const [switching, setSwitching] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
+  const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [diffStyle, setDiffStyle] = useState<"unified" | "split">(
     () => window.innerWidth >= 1400 ? "split" : "unified"
   );
   const theme = useTheme();
 
+  const tree = useMemo(
+    () => buildFileTree(files.map((f) => ({ path: f.path, additions: f.additions, deletions: f.deletions }))),
+    [files]
+  );
+  const orderedFiles = useMemo(() => {
+    const byPath = new Map(files.map((f) => [f.path, f]));
+    return flattenTreeFiles(tree)
+      .map((tf) => byPath.get(tf.path))
+      .filter((f): f is DiffFile => Boolean(f));
+  }, [tree, files]);
+
+  useEffect(() => {
+    if (activeFile === null && orderedFiles.length > 0) {
+      setActiveFile(orderedFiles[0].path);
+    }
+  }, [activeFile, orderedFiles]);
+
+  const applyDiff = useCallback((data: DiffState) => {
+    setDiff(data);
+    setFiles(parseDiffToFiles(data.rawPatch, data.files || []));
+    setAnnotations([]);
+    setViewedFiles(new Set());
+    setCollapsedDirs(new Set());
+    setActiveFile(null);
+  }, []);
+
   useEffect(() => {
     fetch("/api/diff")
       .then((res) => res.json())
-      .then((data: DiffState) => {
-        setDiff(data);
-        const parsed = parseDiffToFiles(data.rawPatch, data.files || []);
-        setFiles(parsed);
-        if (parsed.length > 0) setActiveFile(parsed[0].path);
-      });
-  }, []);
+      .then(applyDiff);
+  }, [applyDiff]);
 
   const handleSwitch = useCallback(
     async (diffType: "uncommitted" | "branch") => {
@@ -103,18 +126,12 @@ export default function App() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ diffType }),
         });
-        const data: DiffState = await res.json();
-        setDiff(data);
-        const parsed = parseDiffToFiles(data.rawPatch, data.files || []);
-        setFiles(parsed);
-        setAnnotations([]);
-        setViewedFiles(new Set());
-        setActiveFile(parsed.length > 0 ? parsed[0].path : null);
+        applyDiff(await res.json());
       } finally {
         setSwitching(false);
       }
     },
-    []
+    [applyDiff]
   );
 
   const handleAddAnnotation = useCallback(
@@ -257,22 +274,31 @@ export default function App() {
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="w-64 border-r bg-card overflow-y-auto shrink-0">
-          <FileList
-            files={files}
+          <FileTree
+            tree={tree}
             activeFile={activeFile}
             annotations={annotations}
-            onSelect={scrollToFile}
+            collapsed={collapsedDirs}
+            onToggleDir={(path) =>
+              setCollapsedDirs((prev) => {
+                const next = new Set(prev);
+                if (next.has(path)) next.delete(path);
+                else next.add(path);
+                return next;
+              })
+            }
+            onSelectFile={scrollToFile}
           />
         </aside>
 
         <main className="flex-1 overflow-y-auto p-4 bg-muted">
-          {files.length === 0 ? (
+          {orderedFiles.length === 0 ? (
             <div className="text-muted-foreground text-center mt-20">
               No changes to review.
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-              {files.map((file) => (
+              {orderedFiles.map((file) => (
                 <div
                   key={file.path}
                   ref={(el) => {
