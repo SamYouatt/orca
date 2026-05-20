@@ -27,6 +27,7 @@ struct IssueDetails<'a> {
     status: &'a str,
     created_at: &'a str,
     blockers: &'a [String],
+    blocked: &'a [String],
 }
 
 pub fn create(base_dir: &Path, repo: Option<&Path>, title: &str, body: &str) -> Result<String> {
@@ -48,9 +49,10 @@ pub fn list(
     base_dir: &Path,
     repo: Option<&Path>,
     statuses: &[String],
+    blocked_by: Option<&str>,
     json: bool,
 ) -> Result<String> {
-    let issues = issue_store::list(base_dir, repo, statuses)?;
+    let issues = issue_store::list(base_dir, repo, statuses, blocked_by)?;
 
     if json {
         let summaries = issues.iter().map(IssueSummary::from).collect::<Vec<_>>();
@@ -64,24 +66,44 @@ pub fn list(
         .join("\n"))
 }
 
+pub fn block(base_dir: &Path, repo: Option<&Path>, id: &str, blockers: &[&str]) -> Result<()> {
+    issue_store::block(base_dir, repo, id, blockers)
+}
+
+pub fn unblock(base_dir: &Path, repo: Option<&Path>, id: &str, blockers: &[&str]) -> Result<()> {
+    issue_store::unblock(base_dir, repo, id, blockers)
+}
+
 fn format_issue(issue: &Issue) -> String {
     format!(
-        "id: {}\ntitle: {}\nstatus: {}\nrepo: {}\ncreated: {}\n\n{}",
-        issue.local_id, issue.title, issue.status, issue.repo_path, issue.created_at, issue.body
+        "id: {}\ntitle: {}\nstatus: {}\nrepo: {}\ncreated: {}\nblockers: {}\nblocked: {}\n\n{}",
+        issue.local_id,
+        issue.title,
+        issue.status,
+        issue.repo_path,
+        issue.created_at,
+        format_issue_id_list(&issue.blockers),
+        format_issue_id_list(&issue.blocked),
+        issue.body
     )
 }
 
 fn format_issue_summary(issue: &Issue) -> String {
-    let blockers = if issue.blockers.is_empty() {
-        "-".to_string()
-    } else {
-        issue.blockers.join(",")
-    };
-
     format!(
         "{}  {}  {}  blockers: {}",
-        issue.local_id, issue.status, issue.title, blockers
+        issue.local_id,
+        issue.status,
+        issue.title,
+        format_issue_id_list(&issue.blockers)
     )
+}
+
+fn format_issue_id_list(ids: &[String]) -> String {
+    if ids.is_empty() {
+        "-".to_string()
+    } else {
+        ids.join(",")
+    }
 }
 
 fn serialize_issue_id<S>(id: &IssueId, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -112,6 +134,7 @@ impl<'a> From<&'a Issue> for IssueDetails<'a> {
             status: &issue.status,
             created_at: &issue.created_at,
             blockers: &issue.blockers,
+            blocked: &issue.blocked,
         }
     }
 }

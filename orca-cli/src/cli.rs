@@ -78,6 +78,22 @@ pub enum IssueCommands {
         #[arg(long)]
         status: Vec<String>,
         #[arg(long)]
+        blocked_by: Option<String>,
+        #[arg(long)]
         json: bool,
+    },
+    /// Add blockers to an issue
+    Block {
+        id: String,
+        blockers: Vec<String>,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+    },
+    /// Remove blockers from an issue
+    Unblock {
+        id: String,
+        blockers: Vec<String>,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
     },
 }

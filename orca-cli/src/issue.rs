@@ -11,6 +11,7 @@ pub struct Issue {
     pub status: String,
     pub created_at: String,
     pub blockers: Vec<String>,
+    pub blocked: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]

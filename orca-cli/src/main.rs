@@ -36,9 +36,28 @@ fn main() -> anyhow::Result<()> {
                 };
                 println!("{issue}");
             }
-            cli::IssueCommands::List { repo, status, json } => {
-                let issues = commands::issue::list(&base_dir, repo.as_deref(), &status, json)?;
+            cli::IssueCommands::List {
+                repo,
+                status,
+                blocked_by,
+                json,
+            } => {
+                let issues = commands::issue::list(
+                    &base_dir,
+                    repo.as_deref(),
+                    &status,
+                    blocked_by.as_deref(),
+                    json,
+                )?;
                 println!("{issues}");
+            }
+            cli::IssueCommands::Block { id, blockers, repo } => {
+                let blocker_refs = blockers.iter().map(String::as_str).collect::<Vec<_>>();
+                commands::issue::block(&base_dir, repo.as_deref(), &id, &blocker_refs)?;
+            }
+            cli::IssueCommands::Unblock { id, blockers, repo } => {
+                let blocker_refs = blockers.iter().map(String::as_str).collect::<Vec<_>>();
+                commands::issue::unblock(&base_dir, repo.as_deref(), &id, &blocker_refs)?;
             }
         },
     }
