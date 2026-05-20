@@ -77,10 +77,10 @@ pub fn list(
         if !statuses.is_empty() && !statuses.contains(&issue.status) {
             continue;
         }
-        if let Some(blocker_id) = blocked_by.as_ref() {
-            if !issue.blockers.iter().any(|id| id == blocker_id) {
-                continue;
-            }
+        if let Some(blocker_id) = blocked_by.as_ref()
+            && !issue.blockers.iter().any(|id| id == blocker_id)
+        {
+            continue;
         }
         issues.push(issue);
     }

@@ -352,7 +352,7 @@ fn test_full_lifecycle() {
 
     assert!(!workspace::config_path(orca_dir.path(), name).starts_with(&expected_worktree));
 
-    commands::rm(orca_dir.path(), &[name.clone()], false).unwrap();
+    commands::rm(orca_dir.path(), std::slice::from_ref(name), false).unwrap();
 
     assert!(!workspace::exists(orca_dir.path(), name));
     assert!(!expected_worktree.exists());
@@ -375,7 +375,7 @@ fn test_rm_with_missing_worktree() {
 
     std::fs::remove_dir_all(&worktree).unwrap();
 
-    commands::rm(orca_dir.path(), &[name.clone()], false).unwrap();
+    commands::rm(orca_dir.path(), std::slice::from_ref(&name), false).unwrap();
     assert!(!workspace::exists(orca_dir.path(), &name));
 }
 
