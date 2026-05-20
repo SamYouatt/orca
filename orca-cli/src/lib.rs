@@ -5,6 +5,8 @@ pub mod commands;
 pub mod config;
 pub mod git;
 pub mod github;
+pub mod issue;
+pub mod issue_store;
 pub mod names;
 pub mod setup;
 pub mod sync;

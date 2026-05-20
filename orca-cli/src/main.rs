@@ -28,9 +28,17 @@ fn main() -> anyhow::Result<()> {
                 let id = commands::issue::create(&base_dir, repo.as_deref(), &title, &body)?;
                 println!("{id}");
             }
-            cli::IssueCommands::Show { id, repo } => {
-                let issue = commands::issue::show(&base_dir, repo.as_deref(), &id)?;
+            cli::IssueCommands::Show { id, repo, json } => {
+                let issue = if json {
+                    commands::issue::show_json(&base_dir, repo.as_deref(), &id)?
+                } else {
+                    commands::issue::show(&base_dir, repo.as_deref(), &id)?
+                };
                 println!("{issue}");
+            }
+            cli::IssueCommands::List { repo, status, json } => {
+                let issues = commands::issue::list(&base_dir, repo.as_deref(), &status, json)?;
+                println!("{issues}");
             }
         },
     }

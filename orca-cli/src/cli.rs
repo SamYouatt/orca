@@ -68,5 +68,16 @@ pub enum IssueCommands {
         id: String,
         #[arg(long)]
         repo: Option<std::path::PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// List issues from the resolved repository
+    List {
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+        #[arg(long)]
+        status: Vec<String>,
+        #[arg(long)]
+        json: bool,
     },
 }

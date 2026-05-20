@@ -1,22 +1,13 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use chrono::Utc;
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::git;
+use crate::issue::{Issue, IssueId};
 
-#[derive(Debug)]
-struct Issue {
-    local_id: u64,
-    repo_path: String,
-    title: String,
-    body: String,
-    status: String,
-    created_at: String,
-}
-
-pub fn create(base_dir: &Path, repo: Option<&Path>, title: &str, body: &str) -> Result<String> {
+pub fn create(base_dir: &Path, repo: Option<&Path>, title: &str, body: &str) -> Result<IssueId> {
     let repo_path = resolve_repo(repo)?.display().to_string();
     let conn = open_store(base_dir)?;
     let tx = conn.unchecked_transaction()?;
@@ -35,38 +26,46 @@ pub fn create(base_dir: &Path, repo: Option<&Path>, title: &str, body: &str) -> 
     )?;
     tx.commit()?;
 
-    Ok(format_issue_id(next_id))
+    Ok(IssueId::from(next_id))
 }
 
-pub fn show(base_dir: &Path, repo: Option<&Path>, id: &str) -> Result<String> {
+pub fn get(base_dir: &Path, repo: Option<&Path>, local_id: IssueId) -> Result<Issue> {
     let repo_path = resolve_repo(repo)?.display().to_string();
-    let local_id = parse_issue_id(id)?;
     let conn = open_store(base_dir)?;
 
-    let issue = conn
-        .query_row(
-            "SELECT local_id, repo_path, title, body, status, created_at
-             FROM issues
-             WHERE repo_path = ?1 AND local_id = ?2",
-            params![repo_path, local_id],
-            |row| {
-                Ok(Issue {
-                    local_id: row.get(0)?,
-                    repo_path: row.get(1)?,
-                    title: row.get(2)?,
-                    body: row.get(3)?,
-                    status: row.get(4)?,
-                    created_at: row.get(5)?,
-                })
-            },
-        )
-        .optional()?
-        .with_context(|| format!("issue {} not found", format_issue_id(local_id)))?;
-
-    Ok(format_issue(&issue))
+    conn.query_row(
+        "SELECT local_id, repo_path, title, body, status, created_at
+         FROM issues
+         WHERE repo_path = ?1 AND local_id = ?2",
+        params![repo_path, local_id.as_u64()],
+        issue_from_row,
+    )
+    .optional()?
+    .with_context(|| format!("issue {local_id} not found"))
 }
 
-fn resolve_repo(repo: Option<&Path>) -> Result<std::path::PathBuf> {
+pub fn list(base_dir: &Path, repo: Option<&Path>, statuses: &[String]) -> Result<Vec<Issue>> {
+    let repo_path = resolve_repo(repo)?.display().to_string();
+    let conn = open_store(base_dir)?;
+
+    let mut stmt = conn.prepare(
+        "SELECT local_id, repo_path, title, body, status, created_at
+         FROM issues
+         WHERE repo_path = ?1
+         ORDER BY local_id ASC",
+    )?;
+
+    let issues = stmt
+        .query_map(params![repo_path], issue_from_row)?
+        .collect::<rusqlite::Result<Vec<_>>>()?
+        .into_iter()
+        .filter(|issue| statuses.is_empty() || statuses.contains(&issue.status))
+        .collect();
+
+    Ok(issues)
+}
+
+fn resolve_repo(repo: Option<&Path>) -> Result<PathBuf> {
     match repo {
         Some(path) => git::repo_root_from(path),
         None => git::repo_root().context("could not resolve git repository from current directory"),
@@ -94,23 +93,14 @@ fn open_store(base_dir: &Path) -> Result<Connection> {
     Ok(conn)
 }
 
-fn parse_issue_id(id: &str) -> Result<u64> {
-    id.parse::<u64>()
-        .with_context(|| format!("invalid issue id '{}'", id))
-}
-
-fn format_issue_id(id: u64) -> String {
-    format!("{id:04}")
-}
-
-fn format_issue(issue: &Issue) -> String {
-    format!(
-        "id: {}\ntitle: {}\nstatus: {}\nrepo: {}\ncreated: {}\n\n{}",
-        format_issue_id(issue.local_id),
-        issue.title,
-        issue.status,
-        issue.repo_path,
-        issue.created_at,
-        issue.body
-    )
+fn issue_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Issue> {
+    Ok(Issue {
+        local_id: IssueId::from(row.get::<_, u64>(0)?),
+        repo_path: row.get(1)?,
+        title: row.get(2)?,
+        body: row.get(3)?,
+        status: row.get(4)?,
+        created_at: row.get(5)?,
+        blockers: Vec::new(),
+    })
 }
