@@ -23,9 +23,21 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /Users/samyouatt/Developer/orca/orca-cli && cargo fmt --quiet 2>/dev/null; cargo clippy --fix --allow-dirty --allow-staged --quiet 2>&1 | head -50",
-            "timeout": 60,
-            "statusMessage": "Running cargo fmt + clippy..."
+            "command": "/Users/samyouatt/Developer/orca/orca-cli/scripts/stop-hook-rust.sh",
+            "timeout": 120,
+            "statusMessage": "Running rustfmt on changed files + cargo clippy..."
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/samyouatt/Developer/orca/orca-cli/scripts/stop-hook-rust.sh",
+            "timeout": 120,
+            "statusMessage": "Running rustfmt on changed files + cargo clippy..."
           }
         ]
       }
