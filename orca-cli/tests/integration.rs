@@ -85,6 +85,76 @@ fn test_issue_show_missing_and_no_repo_errors() {
 
 #[test]
 #[serial]
+fn test_issue_list_text_is_repo_scoped_sorted_and_compact() {
+    let repo_a = setup_test_repo();
+    let repo_b = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    commands::issue::create(orca_dir.path(), Some(repo_a.path()), "Second title", "").unwrap();
+    commands::issue::create(orca_dir.path(), Some(repo_a.path()), "First title", "").unwrap();
+    commands::issue::create(orca_dir.path(), Some(repo_b.path()), "Other repo", "").unwrap();
+
+    let listed = commands::issue::list(orca_dir.path(), Some(repo_a.path()), &[], false).unwrap();
+
+    assert_eq!(
+        listed,
+        "0000  todo  Second title  blockers: -\n0001  todo  First title  blockers: -"
+    );
+}
+
+#[test]
+#[serial]
+fn test_issue_list_json_show_json_and_repeated_status_filters() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Alpha", "body").unwrap();
+    commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Beta", "").unwrap();
+
+    let listed = commands::issue::list(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &["todo".into()],
+        true,
+    )
+    .unwrap();
+    let listed_json: serde_json::Value = serde_json::from_str(&listed).unwrap();
+
+    assert_eq!(listed_json[0]["id"], "0000");
+    assert_eq!(listed_json[0]["status"], "todo");
+    assert_eq!(listed_json[0]["title"], "Alpha");
+    assert_eq!(listed_json[0]["blockers"], serde_json::json!([]));
+    assert_eq!(listed_json[1]["id"], "0001");
+    assert!(listed_json[0]["repo_path"].is_null());
+
+    let empty = commands::issue::list(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &["done".into()],
+        false,
+    )
+    .unwrap();
+    assert_eq!(empty, "");
+
+    let shown = commands::issue::show_json(orca_dir.path(), Some(repo_dir.path()), "0000").unwrap();
+    let shown_json: serde_json::Value = serde_json::from_str(&shown).unwrap();
+
+    assert_eq!(shown_json["id"], "0000");
+    assert_eq!(
+        shown_json["repo_path"],
+        repo_dir
+            .path()
+            .canonicalize()
+            .unwrap()
+            .display()
+            .to_string()
+    );
+    assert_eq!(shown_json["body"], "body");
+    assert_eq!(shown_json["blockers"], serde_json::json!([]));
+}
+
+#[test]
+#[serial]
 fn test_full_lifecycle() {
     let repo_dir = setup_test_repo();
     let orca_dir = tempdir().unwrap();
