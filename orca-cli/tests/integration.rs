@@ -94,7 +94,8 @@ fn test_issue_list_text_is_repo_scoped_sorted_and_compact() {
     commands::issue::create(orca_dir.path(), Some(repo_a.path()), "First title", "").unwrap();
     commands::issue::create(orca_dir.path(), Some(repo_b.path()), "Other repo", "").unwrap();
 
-    let listed = commands::issue::list(orca_dir.path(), Some(repo_a.path()), &[], false).unwrap();
+    let listed =
+        commands::issue::list(orca_dir.path(), Some(repo_a.path()), &[], None, false).unwrap();
 
     assert_eq!(
         listed,
@@ -115,6 +116,7 @@ fn test_issue_list_json_show_json_and_repeated_status_filters() {
         orca_dir.path(),
         Some(repo_dir.path()),
         &["todo".into()],
+        None,
         true,
     )
     .unwrap();
@@ -131,6 +133,7 @@ fn test_issue_list_json_show_json_and_repeated_status_filters() {
         orca_dir.path(),
         Some(repo_dir.path()),
         &["done".into()],
+        None,
         false,
     )
     .unwrap();
@@ -151,6 +154,174 @@ fn test_issue_list_json_show_json_and_repeated_status_filters() {
     );
     assert_eq!(shown_json["body"], "body");
     assert_eq!(shown_json["blockers"], serde_json::json!([]));
+    assert_eq!(shown_json["blocked"], serde_json::json!([]));
+}
+
+#[test]
+#[serial]
+fn test_issue_dependency_graph_and_blocked_by_filter() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let blocker =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Foundation", "").unwrap();
+    let downstream = commands::issue::create(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        "Build on foundation",
+        "details",
+    )
+    .unwrap();
+
+    commands::issue::block(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &downstream,
+        &[blocker.as_str()],
+    )
+    .unwrap();
+
+    let shown = commands::issue::show(orca_dir.path(), Some(repo_dir.path()), &downstream).unwrap();
+    assert!(shown.contains("blockers: 0000"));
+    assert!(shown.contains("blocked: -"));
+
+    let blocker_json =
+        commands::issue::show_json(orca_dir.path(), Some(repo_dir.path()), &blocker).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&blocker_json).unwrap();
+    assert_eq!(parsed["id"], "0000");
+    assert_eq!(parsed["blocked"], serde_json::json!(["0001"]));
+
+    let blocked_by = commands::issue::list(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &[],
+        Some(&blocker),
+        true,
+    )
+    .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&blocked_by).unwrap();
+    assert_eq!(parsed.as_array().unwrap().len(), 1);
+    assert_eq!(parsed[0]["id"], "0001");
+    assert_eq!(parsed[0]["blockers"], serde_json::json!(["0000"]));
+}
+
+#[test]
+#[serial]
+fn test_issue_dependency_rejects_invalid_blockers() {
+    let repo_a = setup_test_repo();
+    let repo_b = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let first = commands::issue::create(orca_dir.path(), Some(repo_a.path()), "First", "").unwrap();
+    commands::issue::create(orca_dir.path(), Some(repo_b.path()), "Other repo 0", "").unwrap();
+    commands::issue::create(orca_dir.path(), Some(repo_b.path()), "Other repo 1", "").unwrap();
+    commands::issue::create(orca_dir.path(), Some(repo_b.path()), "Other repo 2", "").unwrap();
+    let repo_b_issue =
+        commands::issue::create(orca_dir.path(), Some(repo_b.path()), "Other repo 3", "").unwrap();
+
+    let self_dependency = commands::issue::block(
+        orca_dir.path(),
+        Some(repo_a.path()),
+        &first,
+        &[first.as_str()],
+    )
+    .unwrap_err();
+    assert!(self_dependency.to_string().contains("cannot block itself"));
+
+    let missing = commands::issue::block(orca_dir.path(), Some(repo_a.path()), &first, &["9999"])
+        .unwrap_err();
+    assert!(missing.to_string().contains("issue 9999 not found"));
+
+    let cross_repo = commands::issue::block(
+        orca_dir.path(),
+        Some(repo_a.path()),
+        &first,
+        &[repo_b_issue.as_str()],
+    )
+    .unwrap_err();
+    assert!(cross_repo.to_string().contains("issue 0003 not found"));
+}
+
+#[test]
+#[serial]
+fn test_issue_dependency_cycle_failure_is_atomic() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let first =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "First", "").unwrap();
+    let second =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Second", "").unwrap();
+    let third =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Third", "").unwrap();
+
+    commands::issue::block(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &second,
+        &[first.as_str()],
+    )
+    .unwrap();
+    commands::issue::block(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &third,
+        &[second.as_str()],
+    )
+    .unwrap();
+
+    let cycle = commands::issue::block(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &first,
+        &[third.as_str()],
+    )
+    .unwrap_err();
+    assert!(cycle.to_string().contains("cycle"));
+
+    let still_unblocked =
+        commands::issue::show(orca_dir.path(), Some(repo_dir.path()), &first).unwrap();
+    assert!(still_unblocked.contains("blockers: -"));
+}
+
+#[test]
+#[serial]
+fn test_issue_unblock_and_missing_blocked_by_filter() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let blocker =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Blocker", "").unwrap();
+    let blocked =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Blocked", "").unwrap();
+
+    commands::issue::block(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &blocked,
+        &[blocker.as_str()],
+    )
+    .unwrap();
+    commands::issue::unblock(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &blocked,
+        &[blocker.as_str()],
+    )
+    .unwrap();
+
+    let shown = commands::issue::show(orca_dir.path(), Some(repo_dir.path()), &blocked).unwrap();
+    assert!(shown.contains("blockers: -"));
+
+    let missing_filter = commands::issue::list(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &[],
+        Some("9999"),
+        false,
+    )
+    .unwrap_err();
+    assert!(missing_filter.to_string().contains("issue 9999 not found"));
 }
 
 #[test]
