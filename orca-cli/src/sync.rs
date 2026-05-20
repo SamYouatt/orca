@@ -330,35 +330,51 @@ pub fn initial_scan(
     for (path, rel) in walk_non_ignored(worktree, wt_filter) {
         scanned += 1;
         if scanned.is_multiple_of(500) {
-            eprint!("\r  {} scanning worktree... {} files", theme::grey("○"), scanned);
+            eprint!(
+                "\r  {} scanning worktree... {} files",
+                theme::grey("○"),
+                scanned
+            );
         }
         worktree_files.insert(rel.clone());
         let root_path = root.join(&rel);
         if !root_path.exists() || !files_identical(&path, &root_path) {
             changed += 1;
-            state
-                .pending
-                .lock()
-                .unwrap()
-                .insert(rel, (Instant::now() - Duration::from_secs(1), PendingSide::One(Side::Worktree)));
+            state.pending.lock().unwrap().insert(
+                rel,
+                (
+                    Instant::now() - Duration::from_secs(1),
+                    PendingSide::One(Side::Worktree),
+                ),
+            );
         }
     }
 
-    eprint!("\r  {} scanning root...    {} files", theme::grey("○"), scanned);
+    eprint!(
+        "\r  {} scanning root...    {} files",
+        theme::grey("○"),
+        scanned
+    );
 
     // walk root for files deleted in worktree
     for (_path, rel) in walk_non_ignored(root, root_filter) {
         scanned += 1;
         if scanned.is_multiple_of(500) {
-            eprint!("\r  {} scanning root... {} files", theme::grey("○"), scanned);
+            eprint!(
+                "\r  {} scanning root... {} files",
+                theme::grey("○"),
+                scanned
+            );
         }
         if !worktree_files.contains(&rel) {
             changed += 1;
-            state
-                .pending
-                .lock()
-                .unwrap()
-                .insert(rel, (Instant::now() - Duration::from_secs(1), PendingSide::One(Side::Worktree)));
+            state.pending.lock().unwrap().insert(
+                rel,
+                (
+                    Instant::now() - Duration::from_secs(1),
+                    PendingSide::One(Side::Worktree),
+                ),
+            );
         }
     }
 

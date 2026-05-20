@@ -1,8 +1,8 @@
 use anyhow::{Result, bail};
 use std::path::Path;
 
-use crate::{git, setup, theme, workspace};
 use crate::setup::ScriptContext;
+use crate::{git, setup, theme, workspace};
 
 pub fn rm(base_dir: &Path, names: &[String], no_script: bool) -> Result<()> {
     let resolved: Vec<String> = if names.is_empty() {
