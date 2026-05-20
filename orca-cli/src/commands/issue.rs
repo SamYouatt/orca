@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use chrono::Utc;
 use rusqlite::{Connection, OptionalExtension, params};
 
@@ -8,7 +8,7 @@ use crate::git;
 
 #[derive(Debug)]
 struct Issue {
-    local_id: i64,
+    local_id: u64,
     repo_path: String,
     title: String,
     body: String,
@@ -17,12 +17,11 @@ struct Issue {
 }
 
 pub fn create(base_dir: &Path, repo: Option<&Path>, title: &str, body: &str) -> Result<String> {
-    let repo_path = resolve_repo(repo)?;
-    let repo_path = repo_path.display().to_string();
+    let repo_path = resolve_repo(repo)?.display().to_string();
     let conn = open_store(base_dir)?;
     let tx = conn.unchecked_transaction()?;
 
-    let next_id: i64 = tx.query_row(
+    let next_id: u64 = tx.query_row(
         "SELECT COALESCE(MAX(local_id) + 1, 0) FROM issues WHERE repo_path = ?1",
         params![repo_path],
         |row| row.get(0),
@@ -40,8 +39,7 @@ pub fn create(base_dir: &Path, repo: Option<&Path>, title: &str, body: &str) -> 
 }
 
 pub fn show(base_dir: &Path, repo: Option<&Path>, id: &str) -> Result<String> {
-    let repo_path = resolve_repo(repo)?;
-    let repo_path = repo_path.display().to_string();
+    let repo_path = resolve_repo(repo)?.display().to_string();
     let local_id = parse_issue_id(id)?;
     let conn = open_store(base_dir)?;
 
@@ -77,12 +75,13 @@ fn resolve_repo(repo: Option<&Path>) -> Result<std::path::PathBuf> {
 
 fn open_store(base_dir: &Path) -> Result<Connection> {
     std::fs::create_dir_all(base_dir)?;
+    // Opening the SQLite file here is the lazy store initialization path.
     let conn = Connection::open(base_dir.join("orca.db"))?;
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS issues (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             repo_path TEXT NOT NULL,
-            local_id INTEGER NOT NULL,
+            local_id INTEGER NOT NULL CHECK(local_id >= 0),
             title TEXT NOT NULL,
             body TEXT NOT NULL,
             status TEXT NOT NULL,
@@ -95,17 +94,12 @@ fn open_store(base_dir: &Path) -> Result<Connection> {
     Ok(conn)
 }
 
-fn parse_issue_id(id: &str) -> Result<i64> {
-    let parsed = id
-        .parse::<i64>()
-        .with_context(|| format!("invalid issue id '{}'", id))?;
-    if parsed < 0 {
-        bail!("invalid issue id '{}'", id);
-    }
-    Ok(parsed)
+fn parse_issue_id(id: &str) -> Result<u64> {
+    id.parse::<u64>()
+        .with_context(|| format!("invalid issue id '{}'", id))
 }
 
-fn format_issue_id(id: i64) -> String {
+fn format_issue_id(id: u64) -> String {
     format!("{id:04}")
 }
 
