@@ -3,6 +3,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde::Serialize;
 
+pub use crate::issue::{BlockerUpdate, IssueUpdate};
 use crate::issue::{Issue, IssueId};
 use crate::issue_store;
 
@@ -72,6 +73,10 @@ pub fn block(base_dir: &Path, repo: Option<&Path>, id: &str, blockers: &[&str]) 
 
 pub fn unblock(base_dir: &Path, repo: Option<&Path>, id: &str, blockers: &[&str]) -> Result<()> {
     issue_store::unblock(base_dir, repo, id, blockers)
+}
+
+pub fn update(base_dir: &Path, repo: Option<&Path>, id: &str, update: IssueUpdate) -> Result<()> {
+    issue_store::update(base_dir, repo, id, update)
 }
 
 fn format_issue(issue: &Issue) -> String {

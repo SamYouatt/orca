@@ -14,6 +14,22 @@ pub struct Issue {
     pub blocked: Vec<String>,
 }
 
+pub struct IssueUpdate {
+    pub title: Option<String>,
+    pub status: Option<String>,
+    pub body: Option<String>,
+    pub blockers: BlockerUpdate,
+}
+
+#[derive(Default)]
+pub enum BlockerUpdate {
+    #[default]
+    Unchanged,
+    Replace(Vec<String>),
+    Add(Vec<String>),
+    Remove(Vec<String>),
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct IssueId(u64);
 
