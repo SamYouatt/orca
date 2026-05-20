@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(zellij --version)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:zellij.dev)",
+      "WebFetch(domain:plannotator.ai)",
+      "Bash(git:*)",
+      "Bash(rustc --version)",
+      "Bash(cargo --version)",
+      "Bash(cargo add:*)",
+      "Bash(cargo build:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(sqlite3:*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/samyouatt/Developer/orca/orca-cli && cargo fmt --quiet 2>/dev/null; cargo clippy --fix --allow-dirty --allow-staged --quiet 2>&1 | head -50",
+            "timeout": 60,
+            "statusMessage": "Running cargo fmt + clippy..."
+          }
+        ]
+      }
+    ]
+  }
+}
