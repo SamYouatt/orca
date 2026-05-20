@@ -1,5 +1,6 @@
 pub mod collection;
 pub mod critique;
+pub mod issue;
 pub mod ls;
 pub mod new;
 pub mod rm;

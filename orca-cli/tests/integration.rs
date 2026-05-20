@@ -33,6 +33,58 @@ fn git_branches(repo: &std::path::Path) -> String {
 
 #[test]
 #[serial]
+fn test_issue_create_show_and_repo_scoped_ids() {
+    let repo_a = setup_test_repo();
+    let repo_b = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    std::env::set_current_dir(repo_a.path()).unwrap();
+    let first = commands::issue::create(orca_dir.path(), None, "First issue", "").unwrap();
+    let second = commands::issue::create(
+        orca_dir.path(),
+        Some(repo_a.path()),
+        "Second issue",
+        "line one\nline two",
+    )
+    .unwrap();
+
+    assert_eq!(first, "0000");
+    assert_eq!(second, "0001");
+
+    let shown = commands::issue::show(orca_dir.path(), Some(repo_a.path()), "0001").unwrap();
+    assert!(shown.contains("id: 0001"));
+    assert!(shown.contains("title: Second issue"));
+    assert!(shown.contains("status: todo"));
+    assert!(shown.contains("repo: "));
+    assert!(shown.ends_with("line one\nline two"));
+
+    let repo_b_first =
+        commands::issue::create(orca_dir.path(), Some(repo_b.path()), "Repo B issue", "").unwrap();
+    assert_eq!(repo_b_first, "0000");
+}
+
+#[test]
+#[serial]
+fn test_issue_show_missing_and_no_repo_errors() {
+    let repo_dir = setup_test_repo();
+    let not_a_repo = tempdir().unwrap();
+    let orca_dir = tempdir().unwrap();
+
+    let missing =
+        commands::issue::show(orca_dir.path(), Some(repo_dir.path()), "0000").unwrap_err();
+    assert!(missing.to_string().contains("issue 0000 not found"));
+
+    std::env::set_current_dir(not_a_repo.path()).unwrap();
+    let no_repo = commands::issue::create(orca_dir.path(), None, "No repo", "").unwrap_err();
+    assert!(
+        no_repo
+            .to_string()
+            .contains("could not resolve git repository")
+    );
+}
+
+#[test]
+#[serial]
 fn test_full_lifecycle() {
     let repo_dir = setup_test_repo();
     let orca_dir = tempdir().unwrap();

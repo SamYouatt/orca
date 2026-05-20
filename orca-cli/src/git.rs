@@ -18,6 +18,25 @@ pub fn repo_root() -> Result<PathBuf> {
     Ok(PathBuf::from(path))
 }
 
+pub fn repo_root_from(path: &Path) -> Result<PathBuf> {
+    let output = Command::new("git")
+        .args([
+            "-C",
+            &path.display().to_string(),
+            "rev-parse",
+            "--show-toplevel",
+        ])
+        .output()
+        .context("failed to run git")?;
+
+    if !output.status.success() {
+        bail!("could not resolve git repository from {}", path.display());
+    }
+
+    let path = String::from_utf8(output.stdout)?.trim().to_string();
+    Ok(PathBuf::from(path))
+}
+
 pub fn fetch_origin(repo: &Path) -> bool {
     Command::new("git")
         .args(["-C", &repo.display().to_string(), "fetch", "origin"])

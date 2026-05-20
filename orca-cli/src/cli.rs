@@ -45,4 +45,28 @@ pub enum Commands {
     },
     /// Open interactive code review in the browser
     Critique,
+    /// Create and view repository-scoped issues
+    Issue {
+        #[command(subcommand)]
+        command: IssueCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum IssueCommands {
+    /// Create an issue in the resolved repository
+    Create {
+        #[arg(long)]
+        title: String,
+        #[arg(long, default_value = "")]
+        body: String,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+    },
+    /// Show an issue from the resolved repository
+    Show {
+        id: String,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+    },
 }
