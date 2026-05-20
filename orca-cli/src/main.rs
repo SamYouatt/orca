@@ -59,6 +59,41 @@ fn main() -> anyhow::Result<()> {
                 let blocker_refs = blockers.iter().map(String::as_str).collect::<Vec<_>>();
                 commands::issue::unblock(&base_dir, repo.as_deref(), &id, &blocker_refs)?;
             }
+            cli::IssueCommands::Update {
+                id,
+                title,
+                status,
+                body,
+                blockers,
+                add_blockers,
+                remove_blockers,
+                repo,
+            } => {
+                let blocker_update = match (
+                    blockers,
+                    add_blockers.is_empty(),
+                    remove_blockers.is_empty(),
+                ) {
+                    (Some(blockers), true, true) => {
+                        commands::issue::BlockerUpdate::Replace(blockers)
+                    }
+                    (None, false, true) => commands::issue::BlockerUpdate::Add(add_blockers),
+                    (None, true, false) => commands::issue::BlockerUpdate::Remove(remove_blockers),
+                    (None, true, true) => commands::issue::BlockerUpdate::Unchanged,
+                    _ => unreachable!("clap rejects mixed blocker update modes"),
+                };
+                commands::issue::update(
+                    &base_dir,
+                    repo.as_deref(),
+                    &id,
+                    commands::issue::IssueUpdate {
+                        title,
+                        status,
+                        body,
+                        blockers: blocker_update,
+                    },
+                )?;
+            }
         },
     }
 

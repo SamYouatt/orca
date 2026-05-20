@@ -96,4 +96,22 @@ pub enum IssueCommands {
         #[arg(long)]
         repo: Option<std::path::PathBuf>,
     },
+    /// Patch issue fields and blockers
+    Update {
+        id: String,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long)]
+        body: Option<String>,
+        #[arg(long, num_args = 0.., value_delimiter = ',', conflicts_with_all = ["add_blockers", "remove_blockers"])]
+        blockers: Option<Vec<String>>,
+        #[arg(long, num_args = 1.., value_delimiter = ',', conflicts_with_all = ["blockers", "remove_blockers"])]
+        add_blockers: Vec<String>,
+        #[arg(long, num_args = 1.., value_delimiter = ',', conflicts_with_all = ["blockers", "add_blockers"])]
+        remove_blockers: Vec<String>,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+    },
 }

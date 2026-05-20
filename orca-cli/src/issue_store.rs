@@ -6,7 +6,7 @@ use chrono::Utc;
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
 use crate::git;
-use crate::issue::{Issue, IssueId};
+use crate::issue::{BlockerUpdate, Issue, IssueId, IssueUpdate};
 
 pub fn create(base_dir: &Path, repo: Option<&Path>, title: &str, body: &str) -> Result<IssueId> {
     let repo_path = resolve_repo(repo)?.display().to_string();
@@ -94,6 +94,186 @@ pub fn block(base_dir: &Path, repo: Option<&Path>, id: &str, blockers: &[&str]) 
 
 pub fn unblock(base_dir: &Path, repo: Option<&Path>, id: &str, blockers: &[&str]) -> Result<()> {
     mutate_blockers(base_dir, repo, id, blockers, Mutation::Remove)
+}
+
+pub fn update(base_dir: &Path, repo: Option<&Path>, id: &str, update: IssueUpdate) -> Result<()> {
+    let repo_path = resolve_repo(repo)?.display().to_string();
+    let issue_id = IssueId::parse(id)?;
+    let conn = open_store(base_dir)?;
+    let tx = conn.unchecked_transaction()?;
+
+    ensure_issue_exists(&tx, &repo_path, issue_id)?;
+    let current = query_current_issue(&tx, &repo_path, issue_id)?;
+    let desired_blockers = desired_blockers(
+        &tx,
+        &repo_path,
+        issue_id,
+        &current.blockers,
+        &update.blockers,
+    )?;
+
+    let title_changed = update
+        .title
+        .as_ref()
+        .is_some_and(|title| title != &current.title);
+    let body_changed = update
+        .body
+        .as_ref()
+        .is_some_and(|body| body != &current.body);
+    let status_changed = update
+        .status
+        .as_ref()
+        .is_some_and(|status| status != &current.status);
+    let blockers_changed = desired_blockers
+        .as_ref()
+        .is_some_and(|blockers| blockers != &current.blockers);
+
+    if update.title.is_none()
+        && update.status.is_none()
+        && update.body.is_none()
+        && matches!(update.blockers, BlockerUpdate::Unchanged)
+    {
+        bail!("at least one update is required");
+    }
+
+    if !title_changed && !body_changed && !status_changed && !blockers_changed {
+        bail!("no changes to apply");
+    }
+
+    let now = Utc::now().to_rfc3339();
+    if title_changed && let Some(title) = update.title {
+        tx.execute(
+            "UPDATE issues SET title = ?1, updated_at = ?2 WHERE repo_path = ?3 AND local_id = ?4",
+            params![title, now, repo_path, issue_id.as_u64()],
+        )?;
+    }
+    if status_changed && let Some(status) = update.status {
+        tx.execute(
+            "UPDATE issues SET status = ?1, updated_at = ?2 WHERE repo_path = ?3 AND local_id = ?4",
+            params![status, now, repo_path, issue_id.as_u64()],
+        )?;
+    }
+    if body_changed && let Some(body) = update.body {
+        tx.execute(
+            "UPDATE issues SET body = ?1, updated_at = ?2 WHERE repo_path = ?3 AND local_id = ?4",
+            params![body, now, repo_path, issue_id.as_u64()],
+        )?;
+    }
+    if blockers_changed && let Some(blockers) = desired_blockers {
+        tx.execute(
+            "DELETE FROM issue_dependencies
+             WHERE repo_path = ?1 AND issue_id = ?2",
+            params![repo_path, issue_id.as_u64()],
+        )?;
+        for blocker_id in blockers {
+            tx.execute(
+                "INSERT INTO issue_dependencies (repo_path, issue_id, blocker_id)
+                 VALUES (?1, ?2, ?3)",
+                params![repo_path, issue_id.as_u64(), blocker_id.as_u64()],
+            )?;
+        }
+    }
+
+    tx.commit()?;
+    Ok(())
+}
+
+fn desired_blockers(
+    tx: &Transaction<'_>,
+    repo_path: &str,
+    issue_id: IssueId,
+    current: &[IssueId],
+    update: &BlockerUpdate,
+) -> Result<Option<Vec<IssueId>>> {
+    let mut desired = match update {
+        BlockerUpdate::Unchanged => return Ok(None),
+        BlockerUpdate::Replace(blockers) => parse_blockers(blockers)?,
+        BlockerUpdate::Add(blockers) => {
+            if blockers.is_empty() {
+                bail!("at least one blocker id is required");
+            }
+            let mut desired = current.to_vec();
+            for blocker_id in parse_blockers(blockers)? {
+                if desired.contains(&blocker_id) {
+                    bail!("issue {blocker_id} is already a blocker");
+                }
+                desired.push(blocker_id);
+            }
+            desired
+        }
+        BlockerUpdate::Remove(blockers) => {
+            if blockers.is_empty() {
+                bail!("at least one blocker id is required");
+            }
+            let removals = parse_blockers(blockers)?;
+            let mut desired = current.to_vec();
+            for blocker_id in removals {
+                let Some(index) = desired.iter().position(|id| *id == blocker_id) else {
+                    bail!("issue {blocker_id} is not a blocker");
+                };
+                desired.remove(index);
+            }
+            desired
+        }
+    };
+
+    desired.sort_unstable();
+    desired.dedup();
+
+    for blocker_id in &desired {
+        if *blocker_id == issue_id {
+            bail!("issue {issue_id} cannot block itself");
+        }
+        ensure_issue_exists(tx, repo_path, *blocker_id)?;
+        if creates_cycle(tx, repo_path, issue_id, *blocker_id)? {
+            bail!(
+                "adding blocker {blocker_id} to issue {issue_id} would create a dependency cycle"
+            );
+        }
+    }
+
+    Ok(Some(desired))
+}
+
+fn parse_blockers(blockers: &[String]) -> Result<Vec<IssueId>> {
+    blockers
+        .iter()
+        .map(|blocker| IssueId::parse(blocker))
+        .collect::<Result<Vec<_>>>()
+}
+
+struct CurrentIssue {
+    title: String,
+    body: String,
+    status: String,
+    blockers: Vec<IssueId>,
+}
+
+fn query_current_issue(
+    tx: &Transaction<'_>,
+    repo_path: &str,
+    issue_id: IssueId,
+) -> Result<CurrentIssue> {
+    let (title, body, status) = tx.query_row(
+        "SELECT title, body, status
+         FROM issues
+         WHERE repo_path = ?1 AND local_id = ?2",
+        params![repo_path, issue_id.as_u64()],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        },
+    )?;
+
+    Ok(CurrentIssue {
+        title,
+        body,
+        status,
+        blockers: blocker_ids_in_tx(tx, repo_path, issue_id)?,
+    })
 }
 
 fn mutate_blockers(
@@ -220,6 +400,24 @@ fn hydrate_dependencies(conn: &Connection, repo_path: &str, issue: &mut Issue) -
 
 fn blocker_ids(conn: &Connection, repo_path: &str, local_id: IssueId) -> Result<Vec<IssueId>> {
     let mut stmt = conn.prepare(
+        "SELECT blocker_id
+         FROM issue_dependencies
+         WHERE repo_path = ?1 AND issue_id = ?2
+         ORDER BY blocker_id ASC",
+    )?;
+    stmt.query_map(params![repo_path, local_id.as_u64()], |row| {
+        Ok(IssueId::from(row.get::<_, u64>(0)?))
+    })?
+    .collect::<rusqlite::Result<Vec<_>>>()
+    .map_err(Into::into)
+}
+
+fn blocker_ids_in_tx(
+    tx: &Transaction<'_>,
+    repo_path: &str,
+    local_id: IssueId,
+) -> Result<Vec<IssueId>> {
+    let mut stmt = tx.prepare(
         "SELECT blocker_id
          FROM issue_dependencies
          WHERE repo_path = ?1 AND issue_id = ?2

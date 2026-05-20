@@ -326,6 +326,195 @@ fn test_issue_unblock_and_missing_blocked_by_filter() {
 
 #[test]
 #[serial]
+fn test_issue_update_patches_fields_and_clears_body() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let issue = commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Original", "body")
+        .unwrap();
+
+    commands::issue::update(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &issue,
+        commands::issue::IssueUpdate {
+            title: Some("Renamed".into()),
+            status: Some("doing".into()),
+            body: None,
+            blockers: commands::issue::BlockerUpdate::Unchanged,
+        },
+    )
+    .unwrap();
+
+    let shown = commands::issue::show(orca_dir.path(), Some(repo_dir.path()), &issue).unwrap();
+    assert!(shown.contains("title: Renamed"));
+    assert!(shown.contains("status: doing"));
+    assert!(shown.ends_with("body"));
+
+    commands::issue::update(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &issue,
+        commands::issue::IssueUpdate {
+            title: None,
+            status: None,
+            body: Some("".into()),
+            blockers: commands::issue::BlockerUpdate::Unchanged,
+        },
+    )
+    .unwrap();
+
+    let shown = commands::issue::show(orca_dir.path(), Some(repo_dir.path()), &issue).unwrap();
+    assert!(shown.contains("title: Renamed"));
+    assert!(shown.contains("status: doing"));
+    assert!(shown.ends_with("\n\n"));
+}
+
+#[test]
+#[serial]
+fn test_issue_update_replaces_adds_and_removes_blockers_atomically() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let first =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "First", "").unwrap();
+    let second =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Second", "").unwrap();
+    let third =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Third", "").unwrap();
+    let target =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Target", "").unwrap();
+
+    commands::issue::update(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &target,
+        commands::issue::IssueUpdate {
+            title: None,
+            status: None,
+            body: None,
+            blockers: commands::issue::BlockerUpdate::Replace(vec![first.clone(), second.clone()]),
+        },
+    )
+    .unwrap();
+
+    let shown = commands::issue::show(orca_dir.path(), Some(repo_dir.path()), &target).unwrap();
+    assert!(shown.contains("blockers: 0000,0001"));
+
+    commands::issue::update(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &target,
+        commands::issue::IssueUpdate {
+            title: None,
+            status: None,
+            body: None,
+            blockers: commands::issue::BlockerUpdate::Add(vec![third.clone()]),
+        },
+    )
+    .unwrap();
+    commands::issue::update(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &target,
+        commands::issue::IssueUpdate {
+            title: None,
+            status: None,
+            body: None,
+            blockers: commands::issue::BlockerUpdate::Remove(vec![first.clone()]),
+        },
+    )
+    .unwrap();
+
+    let shown = commands::issue::show(orca_dir.path(), Some(repo_dir.path()), &target).unwrap();
+    assert!(shown.contains("blockers: 0001,0002"));
+
+    commands::issue::block(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &first,
+        &[target.as_str()],
+    )
+    .unwrap();
+    let cycle = commands::issue::update(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &target,
+        commands::issue::IssueUpdate {
+            title: Some("Should not apply".into()),
+            status: None,
+            body: None,
+            blockers: commands::issue::BlockerUpdate::Replace(vec![first.clone()]),
+        },
+    )
+    .unwrap_err();
+    assert!(cycle.to_string().contains("cycle"));
+
+    let shown = commands::issue::show(orca_dir.path(), Some(repo_dir.path()), &target).unwrap();
+    assert!(shown.contains("title: Target"));
+    assert!(shown.contains("blockers: 0001,0002"));
+}
+
+#[test]
+#[serial]
+fn test_issue_update_rejects_empty_and_noop_mutations() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let blocker =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Blocker", "").unwrap();
+    let target =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Target", "body").unwrap();
+
+    let empty = commands::issue::update(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &target,
+        commands::issue::IssueUpdate {
+            title: None,
+            status: None,
+            body: None,
+            blockers: commands::issue::BlockerUpdate::Unchanged,
+        },
+    )
+    .unwrap_err();
+    assert!(
+        empty
+            .to_string()
+            .contains("at least one update is required")
+    );
+
+    let noop_fields = commands::issue::update(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &target,
+        commands::issue::IssueUpdate {
+            title: Some("Target".into()),
+            status: None,
+            body: Some("body".into()),
+            blockers: commands::issue::BlockerUpdate::Unchanged,
+        },
+    )
+    .unwrap_err();
+    assert!(noop_fields.to_string().contains("no changes to apply"));
+
+    let noop_remove = commands::issue::update(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &target,
+        commands::issue::IssueUpdate {
+            title: None,
+            status: None,
+            body: None,
+            blockers: commands::issue::BlockerUpdate::Remove(vec![blocker.clone()]),
+        },
+    )
+    .unwrap_err();
+    assert!(noop_remove.to_string().contains("not a blocker"));
+}
+
+#[test]
+#[serial]
 fn test_full_lifecycle() {
     let repo_dir = setup_test_repo();
     let orca_dir = tempdir().unwrap();
