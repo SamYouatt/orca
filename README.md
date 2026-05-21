@@ -51,6 +51,33 @@ cargo install --path orca-cli
 |---------|-------------|
 | `orca sync` | Live bidirectional file sync between the root repo and a workspace. Respects `.gitignore`, debounces changes, and restores the root on exit |
 | `orca critique` | Opens an interactive code review in the browser. Diffs your changes against the default branch and lets you annotate them |
+| `orca issue` | Create, list, inspect, update, and block repository-scoped issues |
+
+### Issues
+
+Orca can keep lightweight issues scoped to the current repository. Issue IDs are local to each repo, start at `0000`, and can be resolved from the current directory or with `--repo`.
+
+```bash
+# create an issue
+orca issue create --title "Add setup docs" --body "Document the new setup flow"
+
+# list issues, optionally filtering by status
+orca issue list
+orca issue list --status todo --status doing
+
+# inspect an issue as text or JSON
+orca issue show 0000
+orca issue show 0000 --json
+
+# update fields
+orca issue update 0000 --status doing --title "Add installation docs"
+orca issue update 0000 --body ""
+
+# model dependencies
+orca issue block 0001 0000
+orca issue list --blocked-by 0000
+orca issue unblock 0001 0000
+```
 
 ## Claude Code plugin
 
