@@ -50,6 +50,8 @@ pub enum Commands {
         #[command(subcommand)]
         command: IssueCommands,
     },
+    /// Print the Orca CLI version
+    Version,
 }
 
 #[derive(Subcommand)]
