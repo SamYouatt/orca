@@ -23,6 +23,7 @@ fn main() -> anyhow::Result<()> {
             force,
         } => commands::sync(&base_dir, workspace.as_deref(), verbose, force)?,
         cli::Commands::Critique => commands::critique(&base_dir)?,
+        cli::Commands::Version => println!("{}", env!("CARGO_PKG_VERSION")),
         cli::Commands::Issue { command } => match command {
             cli::IssueCommands::Create { title, body, repo } => {
                 let id = commands::issue::create(&base_dir, repo.as_deref(), &title, &body)?;

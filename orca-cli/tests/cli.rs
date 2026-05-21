@@ -17,6 +17,21 @@ fn run_orca(home: &Path, cwd: &Path, args: &[&str]) -> Output {
 }
 
 #[test]
+fn test_version_command_prints_package_version() {
+    let cwd = tempdir().unwrap();
+    let home_dir = tempdir().unwrap();
+
+    let output = run_orca(home_dir.path(), cwd.path(), &["version"]);
+
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        format!("{}\n", env!("CARGO_PKG_VERSION"))
+    );
+    assert_eq!(String::from_utf8(output.stderr).unwrap(), "");
+}
+
+#[test]
 fn test_issue_cli_stdout_stderr_contracts() {
     let repo_dir = setup_test_repo();
     let home_dir = tempdir().unwrap();
