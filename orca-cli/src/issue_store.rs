@@ -3,15 +3,15 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use chrono::Utc;
-use rusqlite::{Connection, OptionalExtension, Transaction, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
 
 use crate::git;
 use crate::issue::{BlockerUpdate, Issue, IssueId, IssueUpdate};
 
 pub fn create(base_dir: &Path, repo: Option<&Path>, title: &str, body: &str) -> Result<IssueId> {
     let repo_path = resolve_repo(repo)?.display().to_string();
-    let conn = open_store(base_dir)?;
-    let tx = conn.unchecked_transaction()?;
+    let mut conn = open_store(base_dir)?;
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
 
     let next_id: u64 = tx.query_row(
         "SELECT COALESCE(MAX(local_id) + 1, 0) FROM issues WHERE repo_path = ?1",
@@ -344,6 +344,7 @@ fn resolve_repo(repo: Option<&Path>) -> Result<PathBuf> {
 fn open_store(base_dir: &Path) -> Result<Connection> {
     std::fs::create_dir_all(base_dir)?;
     let conn = Connection::open(base_dir.join("orca.db"))?;
+    conn.busy_timeout(std::time::Duration::from_secs(5))?;
     conn.execute_batch(
         "PRAGMA foreign_keys = ON;
         CREATE TABLE IF NOT EXISTS issues (

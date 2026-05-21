@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Arc, Barrier};
+use std::thread;
 use std::time::Instant;
 
 use serial_test::serial;
@@ -8,20 +10,9 @@ use tempfile::tempdir;
 use orca::sync::{self, PendingSide, Side, SyncState};
 use orca::{commands, workspace};
 
-fn setup_test_repo() -> tempfile::TempDir {
-    let dir = tempdir().unwrap();
-    Command::new("git")
-        .args(["init"])
-        .current_dir(dir.path())
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["commit", "--allow-empty", "-m", "init"])
-        .current_dir(dir.path())
-        .output()
-        .unwrap();
-    dir
-}
+mod common;
+
+use common::setup_test_repo;
 
 fn git_branches(repo: &std::path::Path) -> String {
     let output = Command::new("git")
@@ -61,6 +52,40 @@ fn test_issue_create_show_and_repo_scoped_ids() {
     let repo_b_first =
         commands::issue::create(orca_dir.path(), Some(repo_b.path()), "Repo B issue", "").unwrap();
     assert_eq!(repo_b_first, "0000");
+}
+
+#[test]
+fn test_issue_create_allocates_unique_ids_under_contention() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+    let workers = 16;
+    let barrier = Arc::new(Barrier::new(workers));
+
+    let handles = (0..workers)
+        .map(|index| {
+            let barrier = Arc::clone(&barrier);
+            let base_dir = orca_dir.path().to_path_buf();
+            let repo = repo_dir.path().to_path_buf();
+
+            thread::spawn(move || {
+                barrier.wait();
+                commands::issue::create(&base_dir, Some(&repo), &format!("Issue {index}"), "")
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let mut ids = handles
+        .into_iter()
+        .map(|handle| handle.join().unwrap().unwrap())
+        .collect::<Vec<_>>();
+    ids.sort();
+
+    assert_eq!(
+        ids,
+        (0..workers)
+            .map(|id| format!("{id:04}"))
+            .collect::<Vec<_>>()
+    );
 }
 
 #[test]
