@@ -336,8 +336,8 @@ fn mutate_blockers(
 
 fn resolve_repo(repo: Option<&Path>) -> Result<PathBuf> {
     match repo {
-        Some(path) => git::repo_root_from(path),
-        None => git::repo_root().context("could not resolve git repository from current directory"),
+        Some(path) => git::primary_repo_root_from(path),
+        None => git::primary_repo_root(),
     }
 }
 
