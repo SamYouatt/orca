@@ -37,6 +37,36 @@ pub fn repo_root_from(path: &Path) -> Result<PathBuf> {
     Ok(PathBuf::from(path))
 }
 
+pub fn primary_repo_root() -> Result<PathBuf> {
+    primary_repo_root_from(Path::new("."))
+        .context("could not resolve git repository from current directory")
+}
+
+pub fn primary_repo_root_from(path: &Path) -> Result<PathBuf> {
+    let root = repo_root_from(path)?;
+    let output = Command::new("git")
+        .args([
+            "-C",
+            &path.display().to_string(),
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-common-dir",
+        ])
+        .output()
+        .context("failed to run git")?;
+
+    if !output.status.success() {
+        bail!("could not resolve git repository from {}", path.display());
+    }
+
+    let common_dir = PathBuf::from(String::from_utf8(output.stdout)?.trim());
+    Ok(common_dir
+        .parent()
+        .filter(|_| common_dir.file_name().is_some_and(|name| name == ".git"))
+        .map(Path::to_path_buf)
+        .unwrap_or(root))
+}
+
 pub fn fetch_origin(repo: &Path) -> bool {
     Command::new("git")
         .args(["-C", &repo.display().to_string(), "fetch", "origin"])

@@ -130,6 +130,46 @@ fn test_issue_list_text_is_repo_scoped_sorted_and_compact() {
 
 #[test]
 #[serial]
+fn test_issue_list_uses_primary_repo_scope_from_linked_worktree() {
+    let repo_dir = setup_test_repo();
+    let codex_dir = tempdir().unwrap();
+    let orca_dir = tempdir().unwrap();
+    let worktree = codex_dir
+        .path()
+        .join("worktrees")
+        .join("243c")
+        .join("issue-scope");
+    std::fs::create_dir_all(worktree.parent().unwrap()).unwrap();
+
+    Command::new("git")
+        .args([
+            "-C",
+            &repo_dir.path().display().to_string(),
+            "worktree",
+            "add",
+            "-b",
+            "issue-scope",
+            &worktree.display().to_string(),
+        ])
+        .output()
+        .unwrap();
+
+    commands::issue::create(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        "Main checkout issue",
+        "",
+    )
+    .unwrap();
+
+    std::env::set_current_dir(&worktree).unwrap();
+    let listed = commands::issue::list(orca_dir.path(), None, &[], None, false).unwrap();
+
+    assert_eq!(listed, "0000  todo  Main checkout issue  blockers: -");
+}
+
+#[test]
+#[serial]
 fn test_issue_list_json_show_json_and_repeated_status_filters() {
     let repo_dir = setup_test_repo();
     let orca_dir = tempdir().unwrap();
