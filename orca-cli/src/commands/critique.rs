@@ -10,10 +10,12 @@ use std::process::Command;
 use diff::{get_default_branch, run_diff};
 use format::format_feedback;
 use server::ReviewServer;
+use types::DiffSource;
 
 pub fn critique(_base_dir: &Path) -> Result<()> {
     let default_branch = get_default_branch();
-    let (initial_patch, initial_ref, initial_error) = run_diff("uncommitted", &default_branch);
+    let (initial_patch, initial_ref, initial_error) =
+        run_diff(&DiffSource::Uncommitted, &default_branch);
     let server = ReviewServer::start(initial_patch, initial_ref, initial_error, default_branch)?;
 
     eprintln!("Review ready at {}", server.url);
