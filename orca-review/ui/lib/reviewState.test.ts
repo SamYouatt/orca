@@ -231,7 +231,12 @@ describe("review state buckets", () => {
   });
 
   test("serializes feedback without UI-only annotation fields", () => {
-    expect(serializeFeedbackPayload("Ship it", [commentOnA])).toEqual({
+    const annotationWithUiMetadata: Annotation = {
+      ...commentOnA,
+      reviewScope: "Commit: add alpha",
+    };
+
+    expect(serializeFeedbackPayload("Ship it", [annotationWithUiMetadata])).toEqual({
       overallComment: "Ship it",
       annotations: [
         {

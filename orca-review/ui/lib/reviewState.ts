@@ -112,7 +112,13 @@ export function deleteAnnotation(annotations: Annotation[], id: string): Annotat
 }
 
 export function sanitizeAnnotationForFeedback(annotation: Annotation): FeedbackAnnotation {
-  const { id: _id, createdAt: _createdAt, origin: _origin, ...feedbackAnnotation } = annotation;
+  const {
+    id: _id,
+    createdAt: _createdAt,
+    origin: _origin,
+    reviewScope: _reviewScope,
+    ...feedbackAnnotation
+  } = annotation;
   return feedbackAnnotation;
 }
 

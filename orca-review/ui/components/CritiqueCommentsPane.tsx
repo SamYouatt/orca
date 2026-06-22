@@ -50,6 +50,10 @@ function previewComment(text: string): string {
   return singleLine.length <= 140 ? singleLine : `${singleLine.slice(0, 137)}...`;
 }
 
+function isInteractiveEventTarget(target: EventTarget): boolean {
+  return target instanceof Element && Boolean(target.closest("button, textarea, input, select, a"));
+}
+
 function AutoFocusTextarea(props: React.ComponentProps<typeof Textarea>) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -123,12 +127,14 @@ export function CritiqueCommentsPane({
 
   const handleRowKeyDown = useCallback(
     (event: React.KeyboardEvent, annotation: Annotation) => {
+      if (editingId === annotation.id || isInteractiveEventTarget(event.target)) return;
+
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         onJumpToAnnotation(annotation);
       }
     },
-    [onJumpToAnnotation]
+    [editingId, onJumpToAnnotation]
   );
 
   return (
@@ -183,7 +189,10 @@ export function CritiqueCommentsPane({
                           role="button"
                           tabIndex={0}
                           aria-label={`Jump to comment on ${annotation.filePath}, ${formatLineRange(annotation)}`}
-                          onClick={() => onJumpToAnnotation(annotation)}
+                          onClick={(event) => {
+                            if (editingId === annotation.id || isInteractiveEventTarget(event.target)) return;
+                            onJumpToAnnotation(annotation);
+                          }}
                           onKeyDown={(event) => handleRowKeyDown(event, annotation)}
                           className="animate-in fade-in-0 slide-in-from-top-1 px-3 py-3 duration-200 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                         >
@@ -236,7 +245,7 @@ export function CritiqueCommentsPane({
                                 type="button"
                                 variant="ghost"
                                 size="icon-xs"
-                                className="shrink-0 opacity-0 transition-opacity group-hover/comment:opacity-100 focus-visible:opacity-100"
+                                className="shrink-0"
                                 aria-label="Edit comment"
                                 onClick={(event) => {
                                   event.stopPropagation();
@@ -250,7 +259,7 @@ export function CritiqueCommentsPane({
                                 type="button"
                                 variant="ghost"
                                 size="icon-xs"
-                                className="shrink-0 text-destructive opacity-0 transition-opacity hover:text-destructive group-hover/comment:opacity-100 focus-visible:opacity-100"
+                                className="shrink-0 text-destructive hover:text-destructive"
                                 aria-label={`Delete comment on ${annotation.filePath}, ${formatLineRange(annotation)}`}
                                 onClick={(event) => {
                                   event.stopPropagation();

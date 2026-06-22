@@ -57,7 +57,7 @@ export type AnnotationDraft = Omit<
   "id" | "createdAt" | "origin" | "reviewScope"
 > &
   Pick<Annotation, "reviewScope">;
-export type FeedbackAnnotation = Omit<Annotation, "id" | "createdAt" | "origin">;
+export type FeedbackAnnotation = Omit<Annotation, "id" | "createdAt" | "origin" | "reviewScope">;
 
 export interface FeedbackPayload {
   overallComment: string;
