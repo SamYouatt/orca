@@ -36,7 +36,9 @@ interface DiffViewerProps {
   diffStyle: "unified" | "split";
   themeType: "dark" | "light";
   viewed: boolean;
+  collapsed: boolean;
   onToggleViewed: () => void;
+  onCollapsedChange: (collapsed: boolean) => void;
   onAddAnnotation: (ann: Omit<Annotation, "id" | "filePath">) => void;
   onDeleteAnnotation: (id: string) => void;
   onEditAnnotation: (id: string, text: string) => void;
@@ -52,7 +54,9 @@ export function DiffViewer({
   diffStyle,
   themeType,
   viewed,
+  collapsed,
   onToggleViewed,
+  onCollapsedChange,
   onAddAnnotation,
   onDeleteAnnotation,
   onEditAnnotation,
@@ -140,7 +144,11 @@ export function DiffViewer({
 
       if (editingId === annotationId) {
         return (
-          <div key={`edit-${annotationId}`} className="p-3 bg-background font-sans">
+          <div
+            key={`edit-${annotationId}`}
+            className="p-3 bg-background font-sans"
+            data-annotation-id={annotationId}
+          >
             <AutoFocusTextarea
               className="w-full bg-background rounded p-2 text-sm font-sans text-foreground resize-y"
               value={editText}
@@ -171,7 +179,10 @@ export function DiffViewer({
       }
 
       return (
-        <div className="bg-blue-50 dark:bg-blue-950/30 py-2 px-3 font-sans group">
+        <div
+          className="bg-blue-50 dark:bg-blue-950/30 py-2 px-3 font-sans group"
+          data-annotation-id={annotationId}
+        >
           <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2.5">
             <div className="flex-1 text-sm whitespace-pre-wrap">{text}</div>
             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
@@ -287,12 +298,10 @@ export function DiffViewer({
     [pendingText, pendingLabel, handleSavePending, handleKeyDown, renderAnnotation]
   );
 
-  const [collapsed, setCollapsed] = useState(false);
-
   const handleToggleViewed = useCallback(() => {
     onToggleViewed();
-    setCollapsed((c) => !c);
-  }, [onToggleViewed]);
+    onCollapsedChange(!collapsed);
+  }, [collapsed, onCollapsedChange, onToggleViewed]);
 
   return (
     <FileDiff
@@ -315,7 +324,7 @@ export function DiffViewer({
       renderHeaderPrefix={() => (
         <button
           type="button"
-          onClick={() => setCollapsed((c) => !c)}
+          onClick={() => onCollapsedChange(!collapsed)}
           aria-label={collapsed ? "Expand file" : "Collapse file"}
           className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           style={{ marginLeft: -5 }}

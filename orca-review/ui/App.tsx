@@ -32,6 +32,22 @@ interface DiffFile {
   newContent?: string | null;
 }
 
+function parentDirectories(filePath: string): string[] {
+  const parts = filePath.split("/");
+  parts.pop();
+
+  return parts.map((_, index) => parts.slice(0, index + 1).join("/"));
+}
+
+function needsViewSwitch(diff: DiffData, annotation: Annotation): boolean {
+  const { origin } = annotation;
+  if (!origin) return false;
+  if (diff.diffType !== origin.type) return true;
+  if (origin.type !== "commit") return false;
+
+  return diff.selectedCommit?.sha !== origin.commit.sha;
+}
+
 function parseDiffToFiles(rawPatch: string, serverFiles: ServerFileContents[]): DiffFile[] {
   const contentsMap = new Map(serverFiles.map((f) => [f.path, f]));
   const files: DiffFile[] = [];
@@ -105,7 +121,10 @@ export default function App() {
   const [submitted, setSubmitted] = useState(false);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
   const [commentsPaneOpen, setCommentsPaneOpen] = useState(true);
+  const [pendingJump, setPendingJump] = useState<Annotation | null>(null);
+  const [unavailableAnnotationIds, setUnavailableAnnotationIds] = useState<Set<string>>(new Set());
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [diffStyle, setDiffStyle] = useState<"unified" | "split">(
     () => window.innerWidth >= 1400 ? "split" : "unified"
@@ -140,8 +159,10 @@ export default function App() {
   const applyDiff = useCallback((data: DiffData) => {
     setDiff(data);
     setFiles(parseDiffToFiles(data.rawPatch, data.files || []));
+    fileRefs.current.clear();
     setViewedFiles(new Set());
     setCollapsedDirs(new Set());
+    setCollapsedFiles(new Set());
     setActiveFile(null);
   }, []);
 
@@ -218,6 +239,31 @@ export default function App() {
     });
   }, []);
 
+  const handleJumpToAnnotation = useCallback(
+    async (annotation: Annotation) => {
+      if (!diff || !annotation.origin) {
+        setUnavailableAnnotationIds((prev) => new Set(prev).add(annotation.id));
+        return;
+      }
+
+      setUnavailableAnnotationIds((prev) => {
+        const next = new Set(prev);
+        next.delete(annotation.id);
+        return next;
+      });
+
+      if (needsViewSwitch(diff, annotation)) {
+        await handleSwitch(
+          annotation.origin.type,
+          annotation.origin.type === "commit" ? annotation.origin.commit.sha : undefined,
+        );
+      }
+
+      setPendingJump(annotation);
+    },
+    [diff, handleSwitch]
+  );
+
   const buildMarkdown = useCallback(() => {
     return formatFeedbackMarkdown(feedbackAnnotations);
   }, [feedbackAnnotations]);
@@ -248,6 +294,58 @@ export default function App() {
     const el = fileRefs.current.get(filePath);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
+
+  useEffect(() => {
+    if (!pendingJump) return;
+
+    if (!orderedFiles.some((file) => file.path === pendingJump.filePath)) {
+      setUnavailableAnnotationIds((prev) => new Set(prev).add(pendingJump.id));
+      setPendingJump(null);
+      return;
+    }
+
+    setActiveFile(pendingJump.filePath);
+    setCollapsedDirs((prev) => {
+      const next = new Set(prev);
+      for (const dir of parentDirectories(pendingJump.filePath)) {
+        next.delete(dir);
+      }
+      return next;
+    });
+    setCollapsedFiles((prev) => {
+      const next = new Set(prev);
+      next.delete(pendingJump.filePath);
+      return next;
+    });
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const fileElement = fileRefs.current.get(pendingJump.filePath);
+        if (!fileElement) {
+          setUnavailableAnnotationIds((prev) => new Set(prev).add(pendingJump.id));
+          return;
+        }
+
+        const annotationElement = fileElement.querySelector<HTMLElement>(
+          `[data-annotation-id="${pendingJump.id}"]`,
+        );
+
+        if (annotationElement) {
+          annotationElement.scrollIntoView({ behavior: "smooth", block: "center" });
+          setUnavailableAnnotationIds((prev) => {
+            const next = new Set(prev);
+            next.delete(pendingJump.id);
+            return next;
+          });
+        } else {
+          fileElement.scrollIntoView({ behavior: "smooth", block: "start" });
+          setUnavailableAnnotationIds((prev) => new Set(prev).add(pendingJump.id));
+        }
+      });
+    });
+
+    setPendingJump(null);
+  }, [orderedFiles, pendingJump]);
 
   useEffect(() => {
     const handleGlobalKeys = (e: KeyboardEvent) => {
@@ -362,11 +460,20 @@ export default function App() {
                     diffStyle={diffStyle}
                     themeType={theme}
                     viewed={viewedFiles.has(file.path)}
+                    collapsed={collapsedFiles.has(file.path)}
                     onToggleViewed={() =>
                       setViewedFiles((prev) => {
                         const next = new Set(prev);
                         if (next.has(file.path)) next.delete(file.path);
                         else next.add(file.path);
+                        return next;
+                      })
+                    }
+                    onCollapsedChange={(collapsed) =>
+                      setCollapsedFiles((prev) => {
+                        const next = new Set(prev);
+                        if (collapsed) next.add(file.path);
+                        else next.delete(file.path);
                         return next;
                       })
                     }
@@ -385,9 +492,11 @@ export default function App() {
         <CritiqueCommentsPane
           annotations={feedbackAnnotations}
           open={commentsPaneOpen}
+          unavailableAnnotationIds={unavailableAnnotationIds}
           onOpenChange={setCommentsPaneOpen}
           onDeleteAnnotation={handleDeleteFeedbackAnnotation}
           onEditAnnotation={handleEditAnnotation}
+          onJumpToAnnotation={handleJumpToAnnotation}
         />
       </div>
 

@@ -19,9 +19,11 @@ import type { Annotation } from "../types";
 interface CritiqueCommentsPaneProps {
   annotations: Annotation[];
   open: boolean;
+  unavailableAnnotationIds: Set<string>;
   onOpenChange: (open: boolean) => void;
   onDeleteAnnotation: (id: string) => void;
   onEditAnnotation: (id: string, text: string) => void;
+  onJumpToAnnotation: (annotation: Annotation) => void;
 }
 
 interface AnnotationGroup {
@@ -61,9 +63,11 @@ function AutoFocusTextarea(props: React.ComponentProps<typeof Textarea>) {
 export function CritiqueCommentsPane({
   annotations,
   open,
+  unavailableAnnotationIds,
   onOpenChange,
   onDeleteAnnotation,
   onEditAnnotation,
+  onJumpToAnnotation,
 }: CritiqueCommentsPaneProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -117,6 +121,16 @@ export function CritiqueCommentsPane({
     [cancelEdit, saveEdit]
   );
 
+  const handleRowKeyDown = useCallback(
+    (event: React.KeyboardEvent, annotation: Annotation) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        onJumpToAnnotation(annotation);
+      }
+    },
+    [onJumpToAnnotation]
+  );
+
   return (
     <aside
       className={`shrink-0 overflow-hidden border-l bg-card transition-[width] duration-300 ease-in-out ${
@@ -166,11 +180,21 @@ export function CritiqueCommentsPane({
                       {group.annotations.map((annotation) => (
                         <article
                           key={annotation.id}
-                          className="animate-in fade-in-0 slide-in-from-top-1 px-3 py-3 duration-200 transition-colors hover:bg-muted/60"
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Jump to comment on ${annotation.filePath}, ${formatLineRange(annotation)}`}
+                          onClick={() => onJumpToAnnotation(annotation)}
+                          onKeyDown={(event) => handleRowKeyDown(event, annotation)}
+                          className="animate-in fade-in-0 slide-in-from-top-1 px-3 py-3 duration-200 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                         >
                           <div className="mb-1.5 text-xs text-muted-foreground">
                             {formatLineRange(annotation)}
                           </div>
+                          {unavailableAnnotationIds.has(annotation.id) && (
+                            <div className="mb-2 rounded-md border border-destructive/25 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+                              Location unavailable
+                            </div>
+                          )}
                           {editingId === annotation.id ? (
                             <div
                               className="space-y-2"
@@ -214,7 +238,8 @@ export function CritiqueCommentsPane({
                                 size="icon-xs"
                                 className="shrink-0 opacity-0 transition-opacity group-hover/comment:opacity-100 focus-visible:opacity-100"
                                 aria-label="Edit comment"
-                                onClick={() => {
+                                onClick={(event) => {
+                                  event.stopPropagation();
                                   setEditingId(annotation.id);
                                   setEditText(annotation.text);
                                 }}
@@ -227,7 +252,10 @@ export function CritiqueCommentsPane({
                                 size="icon-xs"
                                 className="shrink-0 text-destructive opacity-0 transition-opacity hover:text-destructive group-hover/comment:opacity-100 focus-visible:opacity-100"
                                 aria-label={`Delete comment on ${annotation.filePath}, ${formatLineRange(annotation)}`}
-                                onClick={() => setPendingDelete(annotation)}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setPendingDelete(annotation);
+                                }}
                               >
                                 <Trash2 className="size-3" aria-hidden="true" />
                               </Button>
