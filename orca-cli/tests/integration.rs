@@ -391,6 +391,58 @@ fn test_issue_unblock_and_missing_blocked_by_filter() {
 
 #[test]
 #[serial]
+fn test_issue_block_and_unblock_reject_noop_edges() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let blocker =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Blocker", "").unwrap();
+    let blocked =
+        commands::issue::create(orca_dir.path(), Some(repo_dir.path()), "Blocked", "").unwrap();
+
+    commands::issue::block(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &blocked,
+        &[blocker.as_str()],
+    )
+    .unwrap();
+
+    let duplicate = commands::issue::block(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &blocked,
+        &[blocker.as_str()],
+    )
+    .unwrap_err();
+    assert!(duplicate.to_string().contains("already a blocker"));
+
+    let shown = commands::issue::show(orca_dir.path(), Some(repo_dir.path()), &blocked).unwrap();
+    assert!(shown.contains("blockers: 0000"));
+
+    commands::issue::unblock(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &blocked,
+        &[blocker.as_str()],
+    )
+    .unwrap();
+
+    let missing = commands::issue::unblock(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        &blocked,
+        &[blocker.as_str()],
+    )
+    .unwrap_err();
+    assert!(missing.to_string().contains("not a blocker"));
+
+    let shown = commands::issue::show(orca_dir.path(), Some(repo_dir.path()), &blocked).unwrap();
+    assert!(shown.contains("blockers: -"));
+}
+
+#[test]
+#[serial]
 fn test_issue_update_patches_fields_and_clears_body() {
     let repo_dir = setup_test_repo();
     let orca_dir = tempdir().unwrap();
