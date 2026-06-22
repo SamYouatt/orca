@@ -7,7 +7,15 @@ import { DiffViewer } from "./components/DiffViewer";
 import { FeedbackBar } from "./components/FeedbackBar";
 import { useTheme } from "./hooks/useTheme";
 import { buildFileTree, flattenTreeFiles } from "./lib/fileTree";
+import {
+  annotationsForFeedback,
+  annotationsForDiff,
+  rememberAnnotations,
+  reviewScopeLabel,
+  type AnnotationBuckets,
+} from "./lib/reviewState";
 import type { Annotation, DiffData, DiffType, ServerFileContents } from "./types";
+import { GitBranch, GitCommitHorizontal } from "lucide-react";
 
 interface DiffFile {
   path: string;
@@ -55,11 +63,39 @@ function parseDiffToFiles(rawPatch: string, serverFiles: ServerFileContents[]): 
   return files;
 }
 
+function ReviewScopeTitle({ diff }: { diff: DiffData }) {
+  const selectedCommit = diff.diffType === "commit" ? diff.selectedCommit : undefined;
+
+  return (
+    <div className="min-w-0 max-w-full">
+      <div className="flex min-w-0 items-center gap-2 px-3 py-1.5">
+        <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+          <GitBranch className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+          <span className="truncate" title={diff.currentBranch}>
+            {diff.currentBranch}
+          </span>
+        </div>
+        {selectedCommit && (
+          <>
+            <span className="h-4 w-px shrink-0 bg-border" />
+            <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+              <GitCommitHorizontal className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+              <span className="truncate" title={selectedCommit.subject}>
+                {selectedCommit.subject}
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [diff, setDiff] = useState<DiffData | null>(null);
   const [files, setFiles] = useState<DiffFile[]>([]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
-  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [annotationBuckets, setAnnotationBuckets] = useState<AnnotationBuckets>({});
   const [switching, setSwitching] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
@@ -80,6 +116,14 @@ export default function App() {
       .map((tf) => byPath.get(tf.path))
       .filter((f): f is DiffFile => Boolean(f));
   }, [tree, files]);
+  const annotations = useMemo(
+    () => diff ? annotationsForDiff(annotationBuckets, diff) : [],
+    [annotationBuckets, diff]
+  );
+  const feedbackAnnotations = useMemo(
+    () => diff ? annotationsForFeedback(annotationBuckets, diff) : [],
+    [annotationBuckets, diff]
+  );
 
   useEffect(() => {
     if (activeFile === null && orderedFiles.length > 0) {
@@ -90,7 +134,6 @@ export default function App() {
   const applyDiff = useCallback((data: DiffData) => {
     setDiff(data);
     setFiles(parseDiffToFiles(data.rawPatch, data.files || []));
-    setAnnotations([]);
     setViewedFiles(new Set());
     setCollapsedDirs(new Set());
     setActiveFile(null);
@@ -121,59 +164,82 @@ export default function App() {
 
   const handleAddAnnotation = useCallback(
     (ann: Omit<Annotation, "id">) => {
-      setAnnotations((prev) => [
-        ...prev,
-        { ...ann, id: crypto.randomUUID() },
-      ]);
+      if (!diff) return;
+
+      setAnnotationBuckets((prev) => {
+        const next = [
+          ...annotationsForDiff(prev, diff),
+          {
+            ...ann,
+            id: crypto.randomUUID(),
+            reviewScope: reviewScopeLabel(diff),
+          },
+        ];
+        return rememberAnnotations(prev, diff, next);
+      });
     },
-    []
+    [diff]
   );
 
   const handleDeleteAnnotation = useCallback((id: string) => {
-    setAnnotations((prev) => prev.filter((a) => a.id !== id));
-  }, []);
+    if (!diff) return;
+
+    setAnnotationBuckets((prev) => {
+      const next = annotationsForDiff(prev, diff).filter((a) => a.id !== id);
+      return rememberAnnotations(prev, diff, next);
+    });
+  }, [diff]);
 
   const handleEditAnnotation = useCallback((id: string, text: string) => {
-    setAnnotations((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, text } : a))
-    );
-  }, []);
+    if (!diff) return;
+
+    setAnnotationBuckets((prev) => {
+      const next = annotationsForDiff(prev, diff).map((a) => (a.id === id ? { ...a, text } : a));
+      return rememberAnnotations(prev, diff, next);
+    });
+  }, [diff]);
 
   const buildMarkdown = useCallback(() => {
-    if (annotations.length === 0) return "Code review completed — no changes requested.";
+    if (feedbackAnnotations.length === 0) return "Code review completed — no changes requested.";
 
     const parts: string[] = ["# Code Review Feedback"];
-    const grouped = new Map<string, Annotation[]>();
-    for (const ann of annotations) {
-      const existing = grouped.get(ann.filePath) || [];
+    const grouped = new Map<string, Map<string, Annotation[]>>();
+    for (const ann of feedbackAnnotations) {
+      const scope = ann.reviewScope ?? "Review";
+      const scopeGroup = grouped.get(scope) ?? new Map<string, Annotation[]>();
+      const existing = scopeGroup.get(ann.filePath) || [];
       existing.push(ann);
-      grouped.set(ann.filePath, existing);
+      scopeGroup.set(ann.filePath, existing);
+      grouped.set(scope, scopeGroup);
     }
 
-    for (const [filePath, fileAnns] of grouped) {
-      parts.push(`## ${filePath}`);
-      const sorted = [...fileAnns].sort((a, b) => a.lineStart - b.lineStart);
-      for (const ann of sorted) {
-        const range =
-          ann.lineStart === ann.lineEnd
-            ? `Line ${ann.lineStart}`
-            : `Lines ${ann.lineStart}-${ann.lineEnd}`;
-        parts.push(`### ${range} (${ann.side})\n${ann.text}`);
+    for (const [scope, filesByPath] of grouped) {
+      parts.push(`## ${scope}`);
+      for (const [filePath, fileAnns] of filesByPath) {
+        parts.push(`### ${filePath}`);
+        const sorted = [...fileAnns].sort((a, b) => a.lineStart - b.lineStart);
+        for (const ann of sorted) {
+          const range =
+            ann.lineStart === ann.lineEnd
+              ? `Line ${ann.lineStart}`
+              : `Lines ${ann.lineStart}-${ann.lineEnd}`;
+          parts.push(`#### ${range} (${ann.side})\n${ann.text}`);
+        }
       }
     }
 
     parts.push("Address all feedback above.");
     return parts.join("\n\n");
-  }, [annotations]);
+  }, [feedbackAnnotations]);
 
   const handleSubmit = useCallback(async () => {
     await fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ overallComment: "", annotations }),
+      body: JSON.stringify({ overallComment: "", annotations: feedbackAnnotations }),
     });
     setSubmitted(true);
-  }, [annotations]);
+  }, [feedbackAnnotations]);
 
   const [copied, setCopied] = useState(false);
   const handleCopyMarkdown = useCallback(async () => {
@@ -182,10 +248,13 @@ export default function App() {
     await fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ overallComment: "", annotations }),
+      body: JSON.stringify({
+        overallComment: "",
+        annotations: feedbackAnnotations,
+      }),
     });
     setSubmitted(true);
-  }, [buildMarkdown, annotations]);
+  }, [buildMarkdown, feedbackAnnotations]);
 
   const scrollToFile = useCallback((filePath: string) => {
     setActiveFile(filePath);
@@ -244,11 +313,11 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col">
-      <header className="flex items-center justify-between px-4 py-2 border-b bg-card">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-sm">Orca critique</span>
+      <header className="flex items-center justify-between gap-3 px-4 py-2 border-b bg-card">
+        <div className="min-w-0 flex-1">
+          <ReviewScopeTitle diff={diff} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center justify-end gap-2">
           <ViewStyleToggle current={diffStyle} onChange={setDiffStyle} />
           <DiffToggle
             current={diff.diffType}
@@ -328,7 +397,7 @@ export default function App() {
       </div>
 
       <FeedbackBar
-        annotationCount={annotations.length}
+        annotationCount={feedbackAnnotations.length}
         copied={copied}
         onSubmit={handleSubmit}
         onCopyMarkdown={handleCopyMarkdown}

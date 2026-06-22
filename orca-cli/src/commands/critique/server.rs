@@ -2,7 +2,10 @@ use std::sync::mpsc;
 
 use anyhow::{Context, Result};
 
-use super::diff::{get_all_file_contents, list_branch_commits, run_diff, selected_commit_option};
+use super::diff::{
+    get_all_file_contents, get_current_branch, list_branch_commits, run_diff,
+    selected_commit_option,
+};
 use super::types::{DiffData, DiffSource, FeedbackPayload, SwitchRequest};
 
 const HTML: &str = include_str!("../../../../orca-review/dist/index.html");
@@ -29,6 +32,7 @@ fn build_diff_data(
         raw_patch: patch.to_string(),
         git_ref: git_ref.to_string(),
         diff_type: source.diff_type(),
+        current_branch: get_current_branch(),
         default_branch: default_branch.to_string(),
         commit_options,
         selected_commit,

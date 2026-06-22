@@ -22,8 +22,9 @@ export function DiffToggle({
   const selectedSha = selectedCommit?.sha ?? "";
   const commitSelectTitle =
     selectedCommit
-      ? `${selectedCommit.shortSha} ${selectedCommit.subject}`
+      ? selectedCommit.subject
       : "Select a commit";
+  const commitOptionsOldestFirst = [...commitOptions].reverse();
   const showCommitSelect = current === "commit" && commitOptions.length > 0;
 
   return (
@@ -34,7 +35,7 @@ export function DiffToggle({
           const next = values[0] as DiffType | undefined;
           if (!next || next === current) return;
           if (next === "commit") {
-            const firstCommit = selectedCommit?.sha ?? commitOptions[0]?.sha;
+            const firstCommit = selectedCommit?.sha ?? commitOptionsOldestFirst[0]?.sha;
             if (firstCommit) onSwitch(next, firstCommit);
             return;
           }
@@ -70,9 +71,9 @@ export function DiffToggle({
           className="h-7 max-w-80 min-w-44 rounded-lg border border-border bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
         >
           {!selectedCommit && <option value="">Select commit</option>}
-          {commitOptions.map((commit) => (
+          {commitOptionsOldestFirst.map((commit) => (
             <option key={commit.sha} value={commit.sha}>
-              {commit.shortSha} {commit.subject}
+              {commit.subject}
             </option>
           ))}
         </select>
