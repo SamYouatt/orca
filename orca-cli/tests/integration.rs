@@ -443,6 +443,30 @@ fn test_issue_block_and_unblock_reject_noop_edges() {
 
 #[test]
 #[serial]
+fn test_issue_block_and_unblock_validate_blocker_arguments_before_store_edges() {
+    let repo_dir = setup_test_repo();
+    let orca_dir = tempdir().unwrap();
+
+    let empty =
+        commands::issue::block(orca_dir.path(), Some(repo_dir.path()), "9999", &[]).unwrap_err();
+    assert!(
+        empty
+            .to_string()
+            .contains("at least one blocker id is required")
+    );
+
+    let invalid = commands::issue::unblock(
+        orca_dir.path(),
+        Some(repo_dir.path()),
+        "9999",
+        &["not-an-id"],
+    )
+    .unwrap_err();
+    assert!(invalid.to_string().contains("invalid issue id"));
+}
+
+#[test]
+#[serial]
 fn test_issue_update_patches_fields_and_clears_body() {
     let repo_dir = setup_test_repo();
     let orca_dir = tempdir().unwrap();
