@@ -68,7 +68,7 @@ function ReviewScopeTitle({ diff }: { diff: DiffData }) {
 
   return (
     <div className="min-w-0 max-w-full justify-self-center">
-      <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 shadow-sm">
+      <div className="flex min-w-0 items-center gap-2 px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
           <GitBranch className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
           <span className="truncate" title={diff.currentBranch}>
