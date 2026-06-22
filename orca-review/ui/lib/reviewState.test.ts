@@ -5,6 +5,7 @@ import {
   editAnnotationText,
   annotationsForFeedback,
   annotationsForDiff,
+  formatFeedbackMarkdown,
   rememberAnnotations,
   reviewStateKey,
   serializeFeedbackPayload,
@@ -242,5 +243,60 @@ describe("review state buckets", () => {
         },
       ],
     });
+  });
+
+  test("formats feedback markdown by file and line without scope headings", () => {
+    const uncommittedComment: Annotation = {
+      ...commentOnA,
+      id: "uncommitted",
+      filePath: "zeta.ts",
+      lineStart: 9,
+      lineEnd: 9,
+      text: "Later zeta",
+      reviewScope: "Uncommitted: feature/review-branch",
+    };
+    const branchComment: Annotation = {
+      ...commentOnA,
+      id: "branch",
+      filePath: "alpha.ts",
+      lineStart: 8,
+      lineEnd: 8,
+      text: "Later alpha",
+      reviewScope: "Branch: feature/review-branch vs main",
+    };
+    const commitComment: Annotation = {
+      ...commentOnA,
+      id: "commit",
+      filePath: "alpha.ts",
+      lineStart: 2,
+      lineEnd: 2,
+      text: "Earlier alpha",
+      reviewScope: "Commit: add alpha",
+    };
+
+    expect(formatFeedbackMarkdown([
+      uncommittedComment,
+      branchComment,
+      commitComment,
+    ])).toBe(
+      "# Code Review Feedback\n\n## alpha.ts\n\n### Line 2 (additions)\nEarlier alpha\n\n### Line 8 (additions)\nLater alpha\n\n## zeta.ts\n\n### Line 9 (additions)\nLater zeta\n\nAddress all feedback above.",
+    );
+  });
+
+  test("preserves duplicate-looking feedback comments in markdown", () => {
+    const duplicateA: Annotation = {
+      ...commentOnA,
+      id: "duplicate-a",
+      reviewScope: "Uncommitted: feature/review-branch",
+    };
+    const duplicateB: Annotation = {
+      ...commentOnA,
+      id: "duplicate-b",
+      reviewScope: "Commit: add alpha",
+    };
+
+    expect(formatFeedbackMarkdown([duplicateA, duplicateB])).toBe(
+      "# Code Review Feedback\n\n## a.ts\n\n### Line 4 (additions)\nKeep this with commit A\n\n### Line 4 (additions)\nKeep this with commit A\n\nAddress all feedback above.",
+    );
   });
 });

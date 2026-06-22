@@ -5,6 +5,7 @@ import { ViewStyleToggle } from "./components/ViewStyleToggle";
 import { FileTree } from "./components/FileTree";
 import { DiffViewer } from "./components/DiffViewer";
 import { FeedbackBar } from "./components/FeedbackBar";
+import { CritiqueCommentsPane } from "./components/CritiqueCommentsPane";
 import { useTheme } from "./hooks/useTheme";
 import { buildFileTree, flattenTreeFiles } from "./lib/fileTree";
 import {
@@ -13,6 +14,7 @@ import {
   createAnnotation,
   deleteAnnotation,
   editAnnotationText,
+  formatFeedbackMarkdown,
   rememberAnnotations,
   serializeFeedbackPayload,
   type AnnotationBuckets,
@@ -103,6 +105,7 @@ export default function App() {
   const [submitted, setSubmitted] = useState(false);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
+  const [commentsPaneOpen, setCommentsPaneOpen] = useState(true);
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [diffStyle, setDiffStyle] = useState<"unified" | "split">(
     () => window.innerWidth >= 1400 ? "split" : "unified"
@@ -201,36 +204,7 @@ export default function App() {
   }, [diff]);
 
   const buildMarkdown = useCallback(() => {
-    if (feedbackAnnotations.length === 0) return "Code review completed — no changes requested.";
-
-    const parts: string[] = ["# Code Review Feedback"];
-    const grouped = new Map<string, Map<string, Annotation[]>>();
-    for (const ann of feedbackAnnotations) {
-      const scope = ann.reviewScope ?? "Review";
-      const scopeGroup = grouped.get(scope) ?? new Map<string, Annotation[]>();
-      const existing = scopeGroup.get(ann.filePath) || [];
-      existing.push(ann);
-      scopeGroup.set(ann.filePath, existing);
-      grouped.set(scope, scopeGroup);
-    }
-
-    for (const [scope, filesByPath] of grouped) {
-      parts.push(`## ${scope}`);
-      for (const [filePath, fileAnns] of filesByPath) {
-        parts.push(`### ${filePath}`);
-        const sorted = [...fileAnns].sort((a, b) => a.lineStart - b.lineStart);
-        for (const ann of sorted) {
-          const range =
-            ann.lineStart === ann.lineEnd
-              ? `Line ${ann.lineStart}`
-              : `Lines ${ann.lineStart}-${ann.lineEnd}`;
-          parts.push(`#### ${range} (${ann.side})\n${ann.text}`);
-        }
-      }
-    }
-
-    parts.push("Address all feedback above.");
-    return parts.join("\n\n");
+    return formatFeedbackMarkdown(feedbackAnnotations);
   }, [feedbackAnnotations]);
 
   const handleSubmit = useCallback(async () => {
@@ -347,7 +321,7 @@ export default function App() {
           />
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-4 bg-muted">
+        <main className="min-w-0 flex-1 overflow-y-auto p-4 bg-muted">
           {orderedFiles.length === 0 ? (
             <div className="text-muted-foreground text-center mt-20">
               No changes to review.
@@ -392,6 +366,12 @@ export default function App() {
             </div>
           )}
         </main>
+
+        <CritiqueCommentsPane
+          annotations={feedbackAnnotations}
+          open={commentsPaneOpen}
+          onOpenChange={setCommentsPaneOpen}
+        />
       </div>
 
       <FeedbackBar

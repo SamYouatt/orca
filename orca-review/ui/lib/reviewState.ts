@@ -125,3 +125,32 @@ export function serializeFeedbackPayload(
     annotations: annotations.map(sanitizeAnnotationForFeedback),
   };
 }
+
+export function formatFeedbackMarkdown(annotations: Annotation[]): string {
+  if (annotations.length === 0) return "Code review completed — no changes requested.";
+
+  const parts: string[] = ["# Code Review Feedback"];
+  const grouped = new Map<string, Annotation[]>();
+  for (const annotation of annotations) {
+    const existing = grouped.get(annotation.filePath) ?? [];
+    existing.push(annotation);
+    grouped.set(annotation.filePath, existing);
+  }
+
+  for (const [filePath, fileAnnotations] of [...grouped.entries()].sort(
+    ([left], [right]) => left.localeCompare(right),
+  )) {
+    parts.push(`## ${filePath}`);
+    const sorted = [...fileAnnotations].sort((left, right) => left.lineStart - right.lineStart);
+    for (const annotation of sorted) {
+      const range =
+        annotation.lineStart === annotation.lineEnd
+          ? `Line ${annotation.lineStart}`
+          : `Lines ${annotation.lineStart}-${annotation.lineEnd}`;
+      parts.push(`### ${range} (${annotation.side})\n${annotation.text}`);
+    }
+  }
+
+  parts.push("Address all feedback above.");
+  return parts.join("\n\n");
+}
