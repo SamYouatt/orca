@@ -15,6 +15,20 @@ pub fn get_default_branch() -> String {
     "main".to_string()
 }
 
+pub fn get_current_branch() -> String {
+    if let Ok(output) = Command::new("git")
+        .args(["branch", "--show-current"])
+        .output()
+    {
+        let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !branch.is_empty() {
+            return branch;
+        }
+    }
+
+    "HEAD".to_string()
+}
+
 fn git_diff(args: &[&str]) -> Result<String, String> {
     let mut full_args = args.to_vec();
     // Force standard a/ b/ prefixes regardless of diff.mnemonicPrefix config.

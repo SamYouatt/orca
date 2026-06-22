@@ -16,6 +16,7 @@ export interface DiffData {
   rawPatch: string;
   gitRef: string;
   diffType: DiffType;
+  currentBranch: string;
   defaultBranch: string;
   commitOptions: CommitOption[];
   selectedCommit?: CommitOption;
@@ -30,6 +31,7 @@ export interface Annotation {
   lineStart: number;
   lineEnd: number;
   text: string;
+  reviewScope?: string;
 }
 
 export interface FeedbackPayload {

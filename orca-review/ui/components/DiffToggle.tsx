@@ -22,7 +22,7 @@ export function DiffToggle({
   const selectedSha = selectedCommit?.sha ?? "";
   const commitSelectTitle =
     selectedCommit
-      ? `${selectedCommit.shortSha} ${selectedCommit.subject}`
+      ? selectedCommit.subject
       : "Select a commit";
   const showCommitSelect = current === "commit" && commitOptions.length > 0;
 
@@ -72,7 +72,7 @@ export function DiffToggle({
           {!selectedCommit && <option value="">Select commit</option>}
           {commitOptions.map((commit) => (
             <option key={commit.sha} value={commit.sha}>
-              {commit.shortSha} {commit.subject}
+              {commit.subject}
             </option>
           ))}
         </select>

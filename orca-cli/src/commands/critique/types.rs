@@ -54,6 +54,7 @@ pub struct DiffData {
     pub raw_patch: String,
     pub git_ref: String,
     pub diff_type: DiffType,
+    pub current_branch: String,
     pub default_branch: String,
     pub files: Vec<FileContents>,
     pub commit_options: Vec<CommitOption>,
@@ -94,6 +95,7 @@ pub struct Annotation {
     pub line_start: u32,
     pub line_end: u32,
     pub text: String,
+    pub review_scope: Option<String>,
 }
 
 #[derive(Deserialize)]

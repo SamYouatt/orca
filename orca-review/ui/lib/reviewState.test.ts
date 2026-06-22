@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  annotationsForFeedback,
   annotationsForDiff,
   rememberAnnotations,
   reviewStateKey,
@@ -15,6 +16,7 @@ function diffData(
     rawPatch: "",
     gitRef: "",
     diffType,
+    currentBranch: "feature/review-branch",
     defaultBranch: "main",
     commitOptions: [],
     selectedCommit,
@@ -60,5 +62,48 @@ describe("review state buckets", () => {
     expect(reviewStateKey(commitA)).toBe("commit:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     expect(annotationsForDiff(buckets, commitA)).toEqual([commentOnA]);
     expect(annotationsForDiff(buckets, commitB)).toEqual([commentOnB]);
+    expect(annotationsForFeedback(buckets, commitB)).toEqual([
+      commentOnA,
+      commentOnB,
+    ]);
+  });
+
+  test("does not submit stale branch annotations after the branch patch changes", () => {
+    const branchBefore = {
+      ...diffData("branch"),
+      rawPatch: "diff --git a/before.ts b/before.ts\n",
+    };
+    const branchAfter = {
+      ...diffData("branch"),
+      rawPatch: "diff --git a/after.ts b/after.ts\n",
+    };
+
+    let buckets: AnnotationBuckets = {};
+    buckets = rememberAnnotations(buckets, branchBefore, [commentOnA]);
+    buckets = rememberAnnotations(buckets, branchAfter, [commentOnB]);
+
+    expect(annotationsForDiff(buckets, branchAfter)).toEqual([commentOnB]);
+    expect(annotationsForFeedback(buckets, branchAfter)).toEqual([commentOnB]);
+  });
+
+  test("does not reuse branch annotations when the branch changes with an identical patch", () => {
+    const patch = "diff --git a/same.ts b/same.ts\n";
+    const firstBranch = {
+      ...diffData("branch"),
+      currentBranch: "feature/first",
+      rawPatch: patch,
+    };
+    const secondBranch = {
+      ...diffData("branch"),
+      currentBranch: "feature/second",
+      rawPatch: patch,
+    };
+
+    let buckets: AnnotationBuckets = {};
+    buckets = rememberAnnotations(buckets, firstBranch, [commentOnA]);
+    buckets = rememberAnnotations(buckets, secondBranch, [commentOnB]);
+
+    expect(annotationsForDiff(buckets, secondBranch)).toEqual([commentOnB]);
+    expect(annotationsForFeedback(buckets, secondBranch)).toEqual([commentOnB]);
   });
 });
