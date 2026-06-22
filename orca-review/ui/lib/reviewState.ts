@@ -1,4 +1,4 @@
-import type { Annotation, DiffData } from "../types";
+import type { Annotation, AnnotationDraft, AnnotationOrigin, DiffData, FeedbackAnnotation, FeedbackPayload } from "../types";
 
 export type AnnotationBuckets = Record<string, Annotation[]>;
 
@@ -39,6 +39,46 @@ export function reviewScopeLabel(
   return `Uncommitted: ${diff.currentBranch}`;
 }
 
+export function annotationOrigin(
+  diff: Pick<DiffData, "diffType" | "selectedCommit" | "currentBranch" | "defaultBranch">,
+): AnnotationOrigin {
+  if (diff.diffType === "commit" && diff.selectedCommit) {
+    return {
+      type: "commit",
+      currentBranch: diff.currentBranch,
+      commit: diff.selectedCommit,
+    };
+  }
+
+  if (diff.diffType === "branch") {
+    return {
+      type: "branch",
+      currentBranch: diff.currentBranch,
+      defaultBranch: diff.defaultBranch,
+    };
+  }
+
+  return {
+    type: "uncommitted",
+    currentBranch: diff.currentBranch,
+  };
+}
+
+export function createAnnotation(
+  diff: Pick<DiffData, "diffType" | "selectedCommit" | "currentBranch" | "defaultBranch">,
+  annotation: AnnotationDraft,
+  id: string,
+  createdAt = new Date().toISOString(),
+): Annotation {
+  return {
+    ...annotation,
+    id,
+    createdAt,
+    origin: annotationOrigin(diff),
+    reviewScope: annotation.reviewScope ?? reviewScopeLabel(diff),
+  };
+}
+
 export function rememberAnnotations(
   buckets: AnnotationBuckets,
   diff: Pick<DiffData, "diffType" | "selectedCommit" | "currentBranch" | "defaultBranch" | "rawPatch">,
@@ -59,14 +99,29 @@ export function annotationsForDiff(
 
 export function annotationsForFeedback(
   buckets: AnnotationBuckets,
-  currentDiff: Pick<DiffData, "diffType" | "selectedCommit" | "currentBranch" | "defaultBranch" | "rawPatch">,
 ): Annotation[] {
-  const currentKey = reviewStateKey(currentDiff);
-  return Object.entries(buckets).flatMap(([key, bucket]) => {
-    if (key.startsWith("commit:") || key === currentKey) {
-      return bucket;
-    }
+  return Object.values(buckets).flatMap((bucket) => bucket);
+}
 
-    return [];
-  });
+export function editAnnotationText(annotations: Annotation[], id: string, text: string): Annotation[] {
+  return annotations.map((annotation) => annotation.id === id ? { ...annotation, text } : annotation);
+}
+
+export function deleteAnnotation(annotations: Annotation[], id: string): Annotation[] {
+  return annotations.filter((annotation) => annotation.id !== id);
+}
+
+export function sanitizeAnnotationForFeedback(annotation: Annotation): FeedbackAnnotation {
+  const { id: _id, createdAt: _createdAt, origin: _origin, ...feedbackAnnotation } = annotation;
+  return feedbackAnnotation;
+}
+
+export function serializeFeedbackPayload(
+  overallComment: string,
+  annotations: Annotation[],
+): FeedbackPayload {
+  return {
+    overallComment,
+    annotations: annotations.map(sanitizeAnnotationForFeedback),
+  };
 }

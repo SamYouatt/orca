@@ -24,6 +24,22 @@ export interface DiffData {
   error?: string;
 }
 
+export type AnnotationOrigin =
+  | {
+      type: "uncommitted";
+      currentBranch: string;
+    }
+  | {
+      type: "branch";
+      currentBranch: string;
+      defaultBranch: string;
+    }
+  | {
+      type: "commit";
+      currentBranch: string;
+      commit: CommitOption;
+    };
+
 export interface Annotation {
   id: string;
   filePath: string;
@@ -32,9 +48,18 @@ export interface Annotation {
   lineEnd: number;
   text: string;
   reviewScope?: string;
+  createdAt?: string;
+  origin?: AnnotationOrigin;
 }
+
+export type AnnotationDraft = Omit<
+  Annotation,
+  "id" | "createdAt" | "origin" | "reviewScope"
+> &
+  Pick<Annotation, "reviewScope">;
+export type FeedbackAnnotation = Omit<Annotation, "id" | "createdAt" | "origin">;
 
 export interface FeedbackPayload {
   overallComment: string;
-  annotations: Annotation[];
+  annotations: FeedbackAnnotation[];
 }

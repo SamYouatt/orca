@@ -10,8 +10,11 @@ import { buildFileTree, flattenTreeFiles } from "./lib/fileTree";
 import {
   annotationsForFeedback,
   annotationsForDiff,
+  createAnnotation,
+  deleteAnnotation,
+  editAnnotationText,
   rememberAnnotations,
-  reviewScopeLabel,
+  serializeFeedbackPayload,
   type AnnotationBuckets,
 } from "./lib/reviewState";
 import type { Annotation, DiffData, DiffType, ServerFileContents } from "./types";
@@ -121,8 +124,8 @@ export default function App() {
     [annotationBuckets, diff]
   );
   const feedbackAnnotations = useMemo(
-    () => diff ? annotationsForFeedback(annotationBuckets, diff) : [],
-    [annotationBuckets, diff]
+    () => annotationsForFeedback(annotationBuckets),
+    [annotationBuckets]
   );
 
   useEffect(() => {
@@ -170,9 +173,7 @@ export default function App() {
         const next = [
           ...annotationsForDiff(prev, diff),
           {
-            ...ann,
-            id: crypto.randomUUID(),
-            reviewScope: reviewScopeLabel(diff),
+            ...createAnnotation(diff, ann, crypto.randomUUID()),
           },
         ];
         return rememberAnnotations(prev, diff, next);
@@ -185,7 +186,7 @@ export default function App() {
     if (!diff) return;
 
     setAnnotationBuckets((prev) => {
-      const next = annotationsForDiff(prev, diff).filter((a) => a.id !== id);
+      const next = deleteAnnotation(annotationsForDiff(prev, diff), id);
       return rememberAnnotations(prev, diff, next);
     });
   }, [diff]);
@@ -194,7 +195,7 @@ export default function App() {
     if (!diff) return;
 
     setAnnotationBuckets((prev) => {
-      const next = annotationsForDiff(prev, diff).map((a) => (a.id === id ? { ...a, text } : a));
+      const next = editAnnotationText(annotationsForDiff(prev, diff), id, text);
       return rememberAnnotations(prev, diff, next);
     });
   }, [diff]);
@@ -236,7 +237,7 @@ export default function App() {
     await fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ overallComment: "", annotations: feedbackAnnotations }),
+      body: JSON.stringify(serializeFeedbackPayload("", feedbackAnnotations)),
     });
     setSubmitted(true);
   }, [feedbackAnnotations]);
@@ -248,10 +249,7 @@ export default function App() {
     await fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        overallComment: "",
-        annotations: feedbackAnnotations,
-      }),
+      body: JSON.stringify(serializeFeedbackPayload("", feedbackAnnotations)),
     });
     setSubmitted(true);
   }, [buildMarkdown, feedbackAnnotations]);
