@@ -67,7 +67,7 @@ function ReviewScopeTitle({ diff }: { diff: DiffData }) {
   const selectedCommit = diff.diffType === "commit" ? diff.selectedCommit : undefined;
 
   return (
-    <div className="min-w-0 max-w-full justify-self-center">
+    <div className="min-w-0 max-w-full">
       <div className="flex min-w-0 items-center gap-2 px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
           <GitBranch className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
@@ -313,11 +313,10 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col">
-      <header className="grid grid-cols-[max-content_minmax(0,1fr)_max-content] items-center gap-3 px-4 py-2 border-b bg-card">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="font-semibold text-sm">Orca critique</span>
+      <header className="flex items-center justify-between gap-3 px-4 py-2 border-b bg-card">
+        <div className="min-w-0 flex-1">
+          <ReviewScopeTitle diff={diff} />
         </div>
-        <ReviewScopeTitle diff={diff} />
         <div className="flex min-w-0 items-center justify-end gap-2">
           <ViewStyleToggle current={diffStyle} onChange={setDiffStyle} />
           <DiffToggle
