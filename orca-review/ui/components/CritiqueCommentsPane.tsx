@@ -133,8 +133,8 @@ export function CritiqueCommentsPane({
 
   return (
     <aside
-      className={`shrink-0 overflow-hidden border-l bg-card transition-[width] duration-300 ease-in-out ${
-        open ? "w-80" : "w-14"
+      className={`z-20 shrink-0 overflow-hidden border-l bg-card transition-[width] duration-300 ease-in-out max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:shadow-lg ${
+        open ? "w-80 max-sm:w-[min(20rem,calc(100vw-3.5rem))]" : "w-14"
       }`}
       aria-label="Critique comments"
     >

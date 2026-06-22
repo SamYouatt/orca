@@ -415,8 +415,8 @@ export default function App() {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <aside className="w-64 border-r bg-card overflow-y-auto shrink-0">
+      <div className="relative flex flex-1 overflow-hidden">
+        <aside className="hidden w-64 shrink-0 overflow-y-auto border-r bg-card lg:block">
           <FileTree
             tree={tree}
             activeFile={activeFile}
