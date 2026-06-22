@@ -194,14 +194,29 @@ export default function App() {
     });
   }, [diff]);
 
-  const handleEditAnnotation = useCallback((id: string, text: string) => {
-    if (!diff) return;
-
+  const handleDeleteFeedbackAnnotation = useCallback((id: string) => {
     setAnnotationBuckets((prev) => {
-      const next = editAnnotationText(annotationsForDiff(prev, diff), id, text);
-      return rememberAnnotations(prev, diff, next);
+      const next: AnnotationBuckets = {};
+
+      for (const [key, bucket] of Object.entries(prev)) {
+        next[key] = deleteAnnotation(bucket, id);
+      }
+
+      return next;
     });
-  }, [diff]);
+  }, []);
+
+  const handleEditAnnotation = useCallback((id: string, text: string) => {
+    setAnnotationBuckets((prev) => {
+      const next: AnnotationBuckets = {};
+
+      for (const [key, bucket] of Object.entries(prev)) {
+        next[key] = editAnnotationText(bucket, id, text);
+      }
+
+      return next;
+    });
+  }, []);
 
   const buildMarkdown = useCallback(() => {
     return formatFeedbackMarkdown(feedbackAnnotations);
@@ -371,6 +386,8 @@ export default function App() {
           annotations={feedbackAnnotations}
           open={commentsPaneOpen}
           onOpenChange={setCommentsPaneOpen}
+          onDeleteAnnotation={handleDeleteFeedbackAnnotation}
+          onEditAnnotation={handleEditAnnotation}
         />
       </div>
 
