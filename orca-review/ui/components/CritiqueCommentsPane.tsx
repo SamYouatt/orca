@@ -50,10 +50,6 @@ function previewComment(text: string): string {
   return singleLine.length <= 140 ? singleLine : `${singleLine.slice(0, 137)}...`;
 }
 
-function isInteractiveEventTarget(target: EventTarget): boolean {
-  return target instanceof Element && Boolean(target.closest("button, textarea, input, select, a"));
-}
-
 function AutoFocusTextarea(props: React.ComponentProps<typeof Textarea>) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -125,18 +121,6 @@ export function CritiqueCommentsPane({
     [cancelEdit, saveEdit]
   );
 
-  const handleRowKeyDown = useCallback(
-    (event: React.KeyboardEvent, annotation: Annotation) => {
-      if (editingId === annotation.id || isInteractiveEventTarget(event.target)) return;
-
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        onJumpToAnnotation(annotation);
-      }
-    },
-    [editingId, onJumpToAnnotation]
-  );
-
   return (
     <aside
       className={`z-20 shrink-0 overflow-hidden border-l bg-card transition-[width] duration-300 ease-in-out max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:shadow-lg ${
@@ -186,30 +170,13 @@ export function CritiqueCommentsPane({
                       {group.annotations.map((annotation) => (
                         <article
                           key={annotation.id}
-                          role="button"
-                          tabIndex={0}
-                          aria-label={`Jump to comment on ${annotation.filePath}, ${formatLineRange(annotation)}`}
-                          onClick={(event) => {
-                            if (editingId === annotation.id || isInteractiveEventTarget(event.target)) return;
-                            onJumpToAnnotation(annotation);
-                          }}
-                          onKeyDown={(event) => handleRowKeyDown(event, annotation)}
-                          className="animate-in fade-in-0 slide-in-from-top-1 px-3 py-3 duration-200 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                          className="animate-in fade-in-0 slide-in-from-top-1 px-3 py-3 duration-200 transition-colors"
                         >
-                          <div className="mb-1.5 text-xs text-muted-foreground">
-                            {formatLineRange(annotation)}
-                          </div>
-                          {unavailableAnnotationIds.has(annotation.id) && (
-                            <div className="mb-2 rounded-md border border-destructive/25 bg-destructive/10 px-2 py-1 text-xs text-destructive">
-                              Location unavailable
-                            </div>
-                          )}
                           {editingId === annotation.id ? (
-                            <div
-                              className="space-y-2"
-                              onClick={(event) => event.stopPropagation()}
-                              onMouseDown={(event) => event.stopPropagation()}
-                            >
+                            <div className="space-y-2">
+                              <div className="text-xs text-muted-foreground">
+                                {formatLineRange(annotation)}
+                              </div>
                               <AutoFocusTextarea
                                 className="min-h-20 resize-y bg-background text-sm leading-5"
                                 value={editText}
@@ -238,9 +205,24 @@ export function CritiqueCommentsPane({
                             </div>
                           ) : (
                             <div className="group/comment flex items-start gap-2">
-                              <div className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm leading-5">
-                                {annotation.text}
-                              </div>
+                              <button
+                                type="button"
+                                className="min-w-0 flex-1 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                aria-label={`Jump to comment on ${annotation.filePath}, ${formatLineRange(annotation)}`}
+                                onClick={() => onJumpToAnnotation(annotation)}
+                              >
+                                <span className="mb-1.5 block text-xs text-muted-foreground">
+                                  {formatLineRange(annotation)}
+                                </span>
+                                {unavailableAnnotationIds.has(annotation.id) && (
+                                  <span className="mb-2 block rounded-md border border-destructive/25 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+                                    Location unavailable
+                                  </span>
+                                )}
+                                <span className="block whitespace-pre-wrap break-words text-sm leading-5">
+                                  {annotation.text}
+                                </span>
+                              </button>
                               <Button
                                 type="button"
                                 variant="ghost"

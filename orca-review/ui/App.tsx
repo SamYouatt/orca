@@ -122,7 +122,9 @@ export default function App() {
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
-  const [commentsPaneOpen, setCommentsPaneOpen] = useState(true);
+  const [commentsPaneOpen, setCommentsPaneOpen] = useState(
+    () => window.innerWidth >= 1024
+  );
   const [pendingJump, setPendingJump] = useState<Annotation | null>(null);
   const [unavailableAnnotationIds, setUnavailableAnnotationIds] = useState<Set<string>>(new Set());
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
