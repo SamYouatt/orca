@@ -2,8 +2,8 @@ use std::sync::mpsc;
 
 use anyhow::{Context, Result};
 
-use super::diff::{get_all_file_contents, run_diff};
-use super::types::{DiffData, FeedbackPayload, SwitchRequest};
+use super::diff::{get_all_file_contents, list_branch_commits, run_diff, selected_commit_option};
+use super::types::{DiffData, DiffSource, FeedbackPayload, SwitchRequest};
 
 const HTML: &str = include_str!("../../../../orca-review/dist/index.html");
 const BASE_PORT: u16 = 19400;
@@ -18,16 +18,20 @@ pub struct ReviewServer {
 fn build_diff_data(
     patch: &str,
     git_ref: &str,
-    diff_type: &str,
+    source: &DiffSource,
     default_branch: &str,
     error: &Option<String>,
 ) -> DiffData {
-    let files = get_all_file_contents(patch, diff_type, default_branch);
+    let commit_options = list_branch_commits(default_branch).unwrap_or_default();
+    let selected_commit = selected_commit_option(&commit_options, source.selected_commit_sha());
+    let files = get_all_file_contents(patch, source, default_branch);
     DiffData {
         raw_patch: patch.to_string(),
         git_ref: git_ref.to_string(),
-        diff_type: diff_type.to_string(),
+        diff_type: source.diff_type(),
         default_branch: default_branch.to_string(),
+        commit_options,
+        selected_commit,
         files,
         error: error.clone(),
     }
@@ -94,7 +98,7 @@ impl ReviewServer {
         let mut current_data = build_diff_data(
             &initial_patch,
             &initial_ref,
-            "uncommitted",
+            &DiffSource::Uncommitted,
             &default_branch,
             &initial_error,
         );
@@ -110,22 +114,44 @@ impl ReviewServer {
                 ("POST", "/api/diff/switch") => {
                     let body = read_body(&mut request);
                     match serde_json::from_str::<SwitchRequest>(&body) {
-                        Ok(req) if req.diff_type == "uncommitted" || req.diff_type == "branch" => {
-                            let (patch, git_ref, error) = run_diff(&req.diff_type, &default_branch);
-                            current_data = build_diff_data(
-                                &patch,
-                                &git_ref,
-                                &req.diff_type,
+                        Ok(req) => match DiffSource::try_from(req) {
+                            Ok(source) => {
+                                let (patch, git_ref, error) = run_diff(&source, &default_branch);
+                                current_data = build_diff_data(
+                                    &patch,
+                                    &git_ref,
+                                    &source,
+                                    &default_branch,
+                                    &error,
+                                );
+                                let _ = json_response(
+                                    request,
+                                    &serde_json::to_string(&current_data).unwrap(),
+                                );
+                            }
+                            Err(error) => {
+                                let error = Some(error.to_string());
+                                let empty = build_diff_data(
+                                    "",
+                                    "",
+                                    &DiffSource::Uncommitted,
+                                    &default_branch,
+                                    &error,
+                                );
+                                let _ =
+                                    json_response(request, &serde_json::to_string(&empty).unwrap());
+                            }
+                        },
+                        Err(_) => {
+                            let error = Some("invalid diff switch payload".to_string());
+                            let empty = build_diff_data(
+                                "",
+                                "",
+                                &DiffSource::Uncommitted,
                                 &default_branch,
                                 &error,
                             );
-                            let _ = json_response(
-                                request,
-                                &serde_json::to_string(&current_data).unwrap(),
-                            );
-                        }
-                        _ => {
-                            let _ = json_response(request, r#"{"error":"invalid diffType"}"#);
+                            let _ = json_response(request, &serde_json::to_string(&empty).unwrap());
                         }
                     }
                 }

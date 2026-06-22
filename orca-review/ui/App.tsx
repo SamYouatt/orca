@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import "./app.css";
-import type { Annotation } from "./types";
 import { DiffToggle } from "./components/DiffToggle";
 import { ViewStyleToggle } from "./components/ViewStyleToggle";
 import { FileTree } from "./components/FileTree";
@@ -8,12 +7,7 @@ import { DiffViewer } from "./components/DiffViewer";
 import { FeedbackBar } from "./components/FeedbackBar";
 import { useTheme } from "./hooks/useTheme";
 import { buildFileTree, flattenTreeFiles } from "./lib/fileTree";
-
-interface ServerFileContents {
-  path: string;
-  oldContent: string | null;
-  newContent: string | null;
-}
+import type { Annotation, DiffData, DiffType, ServerFileContents } from "./types";
 
 interface DiffFile {
   path: string;
@@ -23,15 +17,6 @@ interface DiffFile {
   deletions: number;
   oldContent?: string | null;
   newContent?: string | null;
-}
-
-interface DiffState {
-  rawPatch: string;
-  gitRef: string;
-  diffType: "uncommitted" | "branch";
-  defaultBranch: string;
-  files: ServerFileContents[];
-  error?: string;
 }
 
 function parseDiffToFiles(rawPatch: string, serverFiles: ServerFileContents[]): DiffFile[] {
@@ -71,7 +56,7 @@ function parseDiffToFiles(rawPatch: string, serverFiles: ServerFileContents[]): 
 }
 
 export default function App() {
-  const [diff, setDiff] = useState<DiffState | null>(null);
+  const [diff, setDiff] = useState<DiffData | null>(null);
   const [files, setFiles] = useState<DiffFile[]>([]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -102,7 +87,7 @@ export default function App() {
     }
   }, [activeFile, orderedFiles]);
 
-  const applyDiff = useCallback((data: DiffState) => {
+  const applyDiff = useCallback((data: DiffData) => {
     setDiff(data);
     setFiles(parseDiffToFiles(data.rawPatch, data.files || []));
     setAnnotations([]);
@@ -118,13 +103,13 @@ export default function App() {
   }, [applyDiff]);
 
   const handleSwitch = useCallback(
-    async (diffType: "uncommitted" | "branch") => {
+    async (diffType: DiffType, commitId?: string) => {
       setSwitching(true);
       try {
         const res = await fetch("/api/diff/switch", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ diffType }),
+          body: JSON.stringify({ diffType, commitId }),
         });
         applyDiff(await res.json());
       } finally {
@@ -248,6 +233,8 @@ export default function App() {
         <DiffToggle
           current={diff.diffType}
           defaultBranch={diff.defaultBranch}
+          commitOptions={diff.commitOptions || []}
+          selectedCommit={diff.selectedCommit}
           switching={switching}
           onSwitch={handleSwitch}
         />
@@ -266,6 +253,8 @@ export default function App() {
           <DiffToggle
             current={diff.diffType}
             defaultBranch={diff.defaultBranch}
+            commitOptions={diff.commitOptions || []}
+            selectedCommit={diff.selectedCommit}
             switching={switching}
             onSwitch={handleSwitch}
           />
