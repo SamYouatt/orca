@@ -111,18 +111,22 @@ function ReviewScopeTitle({
             <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
               <GitCommitHorizontal className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
               <div
-                className="relative min-w-0 max-w-full"
-                style={{ width: `${Math.min(selectedCommit.subject.length + 4, 56)}ch` }}
+                className={`relative inline-flex min-w-0 max-w-[56ch] items-center rounded-md py-1 pl-1.5 pr-6 transition-colors hover:bg-muted focus-within:ring-2 focus-within:ring-ring/50 ${
+                  switching ? "pointer-events-none opacity-50" : ""
+                }`}
+                title={selectedCommit.subject}
               >
+                <span className="min-w-0 truncate text-sm text-muted-foreground">
+                  {selectedCommit.subject}
+                </span>
                 <select
                   value={selectedCommit.sha}
                   disabled={switching}
-                  title={selectedCommit.subject}
                   aria-label="Select commit"
                   onChange={(event) => {
                     if (event.target.value) onSwitch("commit", event.target.value);
                   }}
-                  className="h-7 w-full min-w-0 appearance-none truncate rounded-md bg-transparent py-1 pl-1.5 pr-6 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+                  className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 outline-none"
                 >
                   {commitOptionsOldestFirst.map((commit) => (
                     <option key={commit.sha} value={commit.sha}>
