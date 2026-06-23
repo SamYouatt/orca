@@ -20,6 +20,12 @@ const plainCommit: CommitOption = {
   subject: "Plain commit",
 };
 
+const oldestCommit: CommitOption = {
+  sha: "cccccccccccccccccccccccccccccccccccccccc",
+  shortSha: "ccccccc",
+  subject: "Oldest commit",
+};
+
 function diffData(
   selectedCommit: CommitOption = commitWithDescription,
   commitOptions: CommitOption[] = [selectedCommit],
@@ -52,7 +58,10 @@ afterEach(() => {
   delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
 });
 
-function renderTitle(diff: DiffData) {
+function renderTitle(
+  diff: DiffData,
+  onSwitch: (diffType: "uncommitted" | "branch" | "commit", commitSha?: string) => void = () => {},
+) {
   const window = new Window();
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   globalThis.window = window as unknown as Window & typeof globalThis;
@@ -63,13 +72,13 @@ function renderTitle(diff: DiffData) {
   root = createRoot(container);
 
   act(() => {
-    root?.render(<ReviewScopeTitle diff={diff} switching={false} onSwitch={() => {}} />);
+    root?.render(<ReviewScopeTitle diff={diff} switching={false} onSwitch={onSwitch} />);
   });
 
   return {
     rerender(nextDiff: DiffData) {
       act(() => {
-        root?.render(<ReviewScopeTitle diff={nextDiff} switching={false} onSwitch={() => {}} />);
+        root?.render(<ReviewScopeTitle diff={nextDiff} switching={false} onSwitch={onSwitch} />);
       });
     },
     button(label: string) {
@@ -138,5 +147,60 @@ describe("ReviewScopeTitle", () => {
     view.rerender(diffData(commitWithDescription, [commitWithDescription, plainCommit]));
     expect(view.button("Show commit description")).not.toBeNull();
     expect(view.description()?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  test("shows commit navigation only when a commit exists in that direction", () => {
+    const newest = commitWithDescription;
+    const middle = plainCommit;
+    const oldest = oldestCommit;
+    const commitsNewestFirst = [newest, middle, oldest];
+
+    const middleMarkup = renderToStaticMarkup(
+      <ReviewScopeTitle
+        diff={diffData(middle, commitsNewestFirst)}
+        switching={false}
+        onSwitch={() => {}}
+      />,
+    );
+    expect(middleMarkup).toContain("Prev");
+    expect(middleMarkup).toContain("Next");
+
+    const newestMarkup = renderToStaticMarkup(
+      <ReviewScopeTitle
+        diff={diffData(newest, commitsNewestFirst)}
+        switching={false}
+        onSwitch={() => {}}
+      />,
+    );
+    expect(newestMarkup).toContain("Prev");
+    expect(newestMarkup).not.toContain("Next");
+
+    const oldestMarkup = renderToStaticMarkup(
+      <ReviewScopeTitle
+        diff={diffData(oldest, commitsNewestFirst)}
+        switching={false}
+        onSwitch={() => {}}
+      />,
+    );
+    expect(oldestMarkup).not.toContain("Prev");
+    expect(oldestMarkup).toContain("Next");
+  });
+
+  test("commit navigation switches to older and newer commits", () => {
+    const switches: Array<["uncommitted" | "branch" | "commit", string | undefined]> = [];
+    const newest = commitWithDescription;
+    const middle = plainCommit;
+    const oldest = oldestCommit;
+    const view = renderTitle(diffData(middle, [newest, middle, oldest]), (diffType, commitSha) => {
+      switches.push([diffType, commitSha]);
+    });
+
+    view.click(view.button("Prev commit"));
+    view.click(view.button("Next commit"));
+
+    expect(switches).toEqual([
+      ["commit", oldest.sha],
+      ["commit", newest.sha],
+    ]);
   });
 });

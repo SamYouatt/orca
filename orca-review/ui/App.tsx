@@ -21,7 +21,14 @@ import {
   type AnnotationBuckets,
 } from "./lib/reviewState";
 import type { Annotation, DiffData, DiffType, ServerFileContents } from "./types";
-import { ChevronDown, GitBranch, GitCommitHorizontal, MoreHorizontal } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  GitBranch,
+  GitCommitHorizontal,
+  MoreHorizontal,
+} from "lucide-react";
 
 interface DiffFile {
   path: string;
@@ -96,6 +103,12 @@ export function ReviewScopeTitle({
 }) {
   const selectedCommit = diff.diffType === "commit" ? diff.selectedCommit : undefined;
   const commitOptionsOldestFirst = [...(diff.commitOptions || [])].reverse();
+  const commitOptionsNewestFirst = diff.commitOptions || [];
+  const selectedCommitIndex = selectedCommit
+    ? commitOptionsNewestFirst.findIndex((commit) => commit.sha === selectedCommit.sha)
+    : -1;
+  const previousCommit = selectedCommitIndex >= 0 ? commitOptionsNewestFirst[selectedCommitIndex + 1] : undefined;
+  const nextCommit = selectedCommitIndex > 0 ? commitOptionsNewestFirst[selectedCommitIndex - 1] : undefined;
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const commitDescription = selectedCommit?.description?.trim();
 
@@ -157,6 +170,32 @@ export function ReviewScopeTitle({
                     onClick={() => setDescriptionOpen((open) => !open)}
                   >
                     <MoreHorizontal className="size-4" aria-hidden="true" />
+                  </Button>
+                )}
+                {previousCommit && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    aria-label="Prev commit"
+                    disabled={switching}
+                    onClick={() => onSwitch("commit", previousCommit.sha)}
+                  >
+                    <ChevronLeft className="size-3.5" aria-hidden="true" />
+                    Prev
+                  </Button>
+                )}
+                {nextCommit && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    aria-label="Next commit"
+                    disabled={switching}
+                    onClick={() => onSwitch("commit", nextCommit.sha)}
+                  >
+                    Next
+                    <ChevronRight className="size-3.5" aria-hidden="true" />
                   </Button>
                 )}
               </div>

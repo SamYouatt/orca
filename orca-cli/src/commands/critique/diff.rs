@@ -96,6 +96,17 @@ pub fn selected_commit_option(
     })
 }
 
+pub fn default_diff_source(default_branch: &str) -> DiffSource {
+    list_branch_commits(default_branch)
+        .ok()
+        .and_then(|commits| {
+            commits
+                .first()
+                .map(|commit| DiffSource::Commit(commit.sha.clone()))
+        })
+        .unwrap_or(DiffSource::Uncommitted)
+}
+
 fn resolve_branch_commit(default_branch: &str, commit: &str) -> Result<CommitOption, String> {
     let commits = list_branch_commits(default_branch)?;
     selected_commit_option(&commits, Some(commit))
@@ -323,6 +334,49 @@ mod tests {
         assert_eq!(commits[0].subject, "second feature commit");
         assert_eq!(commits[1].sha, first);
         assert_eq!(commits[1].subject, "first feature commit");
+    }
+
+    #[test]
+    #[serial]
+    fn default_diff_source_uses_newest_branch_commit_when_available() {
+        let _guard = CWD_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let repo = setup_repo();
+        std::env::set_current_dir(repo.path()).unwrap();
+
+        write_and_commit(repo.path(), "one.txt", "one\n", "first feature commit");
+        let newest = write_and_commit(repo.path(), "two.txt", "two\n", "second feature commit");
+
+        let source = default_diff_source("main");
+
+        match source {
+            DiffSource::Commit(sha) => assert_eq!(sha, newest),
+            DiffSource::Uncommitted | DiffSource::Branch => {
+                panic!("expected newest branch commit as default source")
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn default_diff_source_uses_uncommitted_when_no_branch_commits_exist() {
+        let _guard = CWD_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let repo = setup_repo();
+        std::env::set_current_dir(repo.path()).unwrap();
+
+        let source = default_diff_source("main");
+
+        match source {
+            DiffSource::Uncommitted => {}
+            DiffSource::Branch | DiffSource::Commit(_) => {
+                panic!("expected uncommitted default source without branch commits")
+            }
+        }
     }
 
     #[test]

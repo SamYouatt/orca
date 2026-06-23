@@ -19,8 +19,6 @@ export function DiffToggle({
   switching,
   onSwitch,
 }: DiffToggleProps) {
-  const commitOptionsOldestFirst = [...commitOptions].reverse();
-
   return (
     <div className="flex items-center gap-2 min-w-0">
       <ToggleGroup
@@ -29,7 +27,7 @@ export function DiffToggle({
           const next = values[0] as DiffType | undefined;
           if (!next || next === current) return;
           if (next === "commit") {
-            const firstCommit = selectedCommit?.sha ?? commitOptionsOldestFirst[0]?.sha;
+            const firstCommit = selectedCommit?.sha ?? commitOptions[0]?.sha;
             if (firstCommit) onSwitch(next, firstCommit);
             return;
           }
