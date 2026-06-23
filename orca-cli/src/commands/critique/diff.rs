@@ -312,6 +312,42 @@ mod tests {
 
     #[test]
     #[serial]
+    fn commit_options_include_body_description_when_present() {
+        let _guard = CWD_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let repo = setup_repo();
+        std::env::set_current_dir(repo.path()).unwrap();
+
+        let described = write_and_commit(
+            repo.path(),
+            "described.txt",
+            "described\n",
+            "described commit\n\nExplain why this change exists.\n\nAdd operational context.",
+        );
+        write_and_commit(repo.path(), "plain.txt", "plain\n", "plain commit");
+
+        let commits = list_branch_commits("main").unwrap();
+
+        let described_commit = commits
+            .iter()
+            .find(|commit| commit.sha == described)
+            .expect("described commit should be selectable");
+        assert_eq!(
+            described_commit.description.as_deref(),
+            Some("Explain why this change exists.\n\nAdd operational context."),
+        );
+
+        let plain_commit = commits
+            .iter()
+            .find(|commit| commit.subject == "plain commit")
+            .expect("plain commit should be selectable");
+        assert_eq!(plain_commit.description, None);
+    }
+
+    #[test]
+    #[serial]
     fn commit_diff_returns_only_selected_commit_patch_and_contents() {
         let _guard = CWD_LOCK
             .get_or_init(|| Mutex::new(()))

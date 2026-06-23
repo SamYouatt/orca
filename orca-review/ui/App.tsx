@@ -84,7 +84,7 @@ function parseDiffToFiles(rawPatch: string, serverFiles: ServerFileContents[]): 
   return files;
 }
 
-function ReviewScopeTitle({
+export function ReviewScopeTitle({
   diff,
   switching,
   onSwitch,
