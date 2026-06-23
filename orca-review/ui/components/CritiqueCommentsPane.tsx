@@ -132,10 +132,9 @@ export function CritiqueCommentsPane({
         <div className="flex h-full flex-col">
           <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-3">
             <div className="flex min-w-0 items-center gap-2">
-              <MessageSquare className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <div className="min-w-0">
-                <div className="text-sm font-medium">Comments</div>
-                <div className="text-xs text-muted-foreground">{countLabel}</div>
+              <MessageSquare className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <div className="min-w-0 truncate text-sm font-medium text-muted-foreground">
+                {countLabel}
               </div>
             </div>
             <Button
@@ -166,11 +165,11 @@ export function CritiqueCommentsPane({
                         {group.filePath}
                       </div>
                     </div>
-                    <div className="divide-y">
+                    <div>
                       {group.annotations.map((annotation) => (
                         <article
                           key={annotation.id}
-                          className="animate-in fade-in-0 slide-in-from-top-1 px-3 py-3 duration-200 transition-colors"
+                          className="animate-in fade-in-0 slide-in-from-top-1 px-3 py-3 duration-200 transition-colors hover:bg-muted/60"
                         >
                           {editingId === annotation.id ? (
                             <div className="space-y-2">
@@ -204,10 +203,10 @@ export function CritiqueCommentsPane({
                               </div>
                             </div>
                           ) : (
-                            <div className="group/comment flex items-start gap-2">
+                            <div className="group/comment flex items-center gap-2">
                               <button
                                 type="button"
-                                className="min-w-0 flex-1 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                className="-mx-1 min-w-0 flex-1 rounded-sm px-1 py-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                                 aria-label={`Jump to comment on ${annotation.filePath}, ${formatLineRange(annotation)}`}
                                 onClick={() => onJumpToAnnotation(annotation)}
                               >

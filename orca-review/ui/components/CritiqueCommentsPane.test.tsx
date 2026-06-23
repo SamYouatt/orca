@@ -29,6 +29,13 @@ function renderPane() {
 }
 
 describe("CritiqueCommentsPane", () => {
+  test("uses the count as the open pane header label", () => {
+    const markup = renderPane();
+
+    expect(markup).toContain("1 comment");
+    expect(markup).not.toContain(">Comments<");
+  });
+
   test("renders jump target as a button without making the row interactive", () => {
     const markup = renderPane();
 
