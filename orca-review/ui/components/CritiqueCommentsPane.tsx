@@ -169,7 +169,7 @@ export function CritiqueCommentsPane({
                       {group.annotations.map((annotation) => (
                         <article
                           key={annotation.id}
-                          className="animate-in fade-in-0 slide-in-from-top-1 px-3 py-3 duration-200 transition-colors hover:bg-muted/60"
+                          className="animate-in fade-in-0 slide-in-from-top-1 px-3 py-1.5 duration-200 transition-colors hover:bg-muted/60"
                         >
                           {editingId === annotation.id ? (
                             <div className="space-y-2">
