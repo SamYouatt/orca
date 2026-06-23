@@ -327,6 +327,29 @@ mod tests {
 
     #[test]
     #[serial]
+    fn default_diff_source_uses_newest_branch_commit_when_available() {
+        let _guard = CWD_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let repo = setup_repo();
+        std::env::set_current_dir(repo.path()).unwrap();
+
+        write_and_commit(repo.path(), "one.txt", "one\n", "first feature commit");
+        let newest = write_and_commit(repo.path(), "two.txt", "two\n", "second feature commit");
+
+        let source = default_diff_source("main");
+
+        match source {
+            DiffSource::Commit(sha) => assert_eq!(sha, newest),
+            DiffSource::Uncommitted | DiffSource::Branch => {
+                panic!("expected newest branch commit as default source")
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
     fn commit_options_include_body_description_when_present() {
         let _guard = CWD_LOCK
             .get_or_init(|| Mutex::new(()))
