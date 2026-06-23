@@ -6,6 +6,7 @@ import { FileTree } from "./components/FileTree";
 import { DiffViewer } from "./components/DiffViewer";
 import { FeedbackBar } from "./components/FeedbackBar";
 import { CritiqueCommentsPane } from "./components/CritiqueCommentsPane";
+import { Button } from "./components/ui/button";
 import { useTheme } from "./hooks/useTheme";
 import { buildFileTree, flattenTreeFiles } from "./lib/fileTree";
 import {
@@ -20,7 +21,7 @@ import {
   type AnnotationBuckets,
 } from "./lib/reviewState";
 import type { Annotation, DiffData, DiffType, ServerFileContents } from "./types";
-import { ChevronDown, GitBranch, GitCommitHorizontal } from "lucide-react";
+import { ChevronDown, GitBranch, GitCommitHorizontal, MoreHorizontal } from "lucide-react";
 
 interface DiffFile {
   path: string;
@@ -84,7 +85,7 @@ function parseDiffToFiles(rawPatch: string, serverFiles: ServerFileContents[]): 
   return files;
 }
 
-function ReviewScopeTitle({
+export function ReviewScopeTitle({
   diff,
   switching,
   onSwitch,
@@ -95,52 +96,86 @@ function ReviewScopeTitle({
 }) {
   const selectedCommit = diff.diffType === "commit" ? diff.selectedCommit : undefined;
   const commitOptionsOldestFirst = [...(diff.commitOptions || [])].reverse();
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const commitDescription = selectedCommit?.description?.trim();
+
+  useEffect(() => {
+    setDescriptionOpen(false);
+  }, [selectedCommit?.sha]);
 
   return (
     <div className="min-w-0 max-w-full">
-      <div className="flex min-w-0 items-center gap-2 px-3 py-1.5">
-        <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-          <GitBranch className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-          <span className="truncate" title={diff.currentBranch}>
-            {diff.currentBranch}
-          </span>
-        </div>
-        {selectedCommit && (
-          <>
-            <span className="h-4 w-px shrink-0 bg-border" />
-            <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
-              <GitCommitHorizontal className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-              <div
-                className={`relative inline-flex min-w-0 max-w-[56ch] items-center rounded-md py-1 pl-1.5 pr-6 transition-colors hover:bg-muted focus-within:ring-2 focus-within:ring-ring/50 ${
-                  switching ? "pointer-events-none opacity-50" : ""
-                }`}
-                title={selectedCommit.subject}
-              >
-                <span className="min-w-0 truncate text-sm text-muted-foreground">
-                  {selectedCommit.subject}
-                </span>
-                <select
-                  value={selectedCommit.sha}
-                  disabled={switching}
-                  aria-label="Select commit"
-                  onChange={(event) => {
-                    if (event.target.value) onSwitch("commit", event.target.value);
-                  }}
-                  className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 outline-none"
+      <div className="flex min-w-0 flex-col gap-1 px-3 py-1.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+            <GitBranch className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+            <span className="truncate" title={diff.currentBranch}>
+              {diff.currentBranch}
+            </span>
+          </div>
+          {selectedCommit && (
+            <>
+              <span className="h-4 w-px shrink-0 bg-border" />
+              <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+                <GitCommitHorizontal className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                <div
+                  className={`relative inline-flex min-w-0 max-w-[56ch] items-center rounded-md py-1 pl-1.5 pr-6 transition-colors hover:bg-muted focus-within:ring-2 focus-within:ring-ring/50 ${
+                    switching ? "pointer-events-none opacity-50" : ""
+                  }`}
+                  title={selectedCommit.subject}
                 >
-                  {commitOptionsOldestFirst.map((commit) => (
-                    <option key={commit.sha} value={commit.sha}>
-                      {commit.subject}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  className="pointer-events-none absolute right-1.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden="true"
-                />
+                  <span className="min-w-0 truncate text-sm text-muted-foreground">
+                    {selectedCommit.subject}
+                  </span>
+                  <select
+                    value={selectedCommit.sha}
+                    disabled={switching}
+                    aria-label="Select commit"
+                    onChange={(event) => {
+                      if (event.target.value) onSwitch("commit", event.target.value);
+                    }}
+                    className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 outline-none"
+                  >
+                    {commitOptionsOldestFirst.map((commit) => (
+                      <option key={commit.sha} value={commit.sha}>
+                        {commit.subject}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    className="pointer-events-none absolute right-1.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                </div>
+                {commitDescription && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={descriptionOpen ? "Hide commit description" : "Show commit description"}
+                    aria-expanded={descriptionOpen}
+                    onClick={() => setDescriptionOpen((open) => !open)}
+                  >
+                    <MoreHorizontal className="size-4" aria-hidden="true" />
+                  </Button>
+                )}
               </div>
+            </>
+          )}
+        </div>
+        {commitDescription && (
+          <div
+            aria-hidden={!descriptionOpen}
+            className={`grid transition-all duration-200 ease-out ${
+              descriptionOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+            }`}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <p className="max-w-3xl whitespace-pre-wrap pl-6 text-xs leading-5 text-muted-foreground">
+                {commitDescription}
+              </p>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

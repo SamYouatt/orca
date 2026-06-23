@@ -14,6 +14,8 @@ pub struct CommitOption {
     pub sha: String,
     pub short_sha: String,
     pub subject: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 #[derive(Clone, Debug)]

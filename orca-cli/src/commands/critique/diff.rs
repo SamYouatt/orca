@@ -45,7 +45,11 @@ fn git_diff(args: &[&str]) -> Result<String, String> {
 pub fn list_branch_commits(default_branch: &str) -> Result<Vec<CommitOption>, String> {
     let base = merge_base(default_branch)?;
     let output = Command::new("git")
-        .args(["log", "--format=%H%x1f%h%x1f%s", &format!("{base}..HEAD")])
+        .args([
+            "log",
+            "--format=%H%x1f%h%x1f%s%x1f%b%x1e",
+            &format!("{base}..HEAD"),
+        ])
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -54,16 +58,27 @@ pub fn list_branch_commits(default_branch: &str) -> Result<Vec<CommitOption>, St
     }
 
     Ok(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter_map(|line| {
-            let mut parts = line.splitn(3, '\x1f');
+        .split('\x1e')
+        .filter_map(|record| {
+            let record = record.trim_matches('\n');
+            if record.is_empty() {
+                return None;
+            }
+
+            let mut parts = record.splitn(4, '\x1f');
             let sha = parts.next()?.to_string();
             let short_sha = parts.next()?.to_string();
             let subject = parts.next()?.to_string();
+            let description = parts
+                .next()
+                .map(str::trim)
+                .filter(|description| !description.is_empty())
+                .map(ToString::to_string);
             Some(CommitOption {
                 sha,
                 short_sha,
                 subject,
+                description,
             })
         })
         .collect())
@@ -308,6 +323,42 @@ mod tests {
         assert_eq!(commits[0].subject, "second feature commit");
         assert_eq!(commits[1].sha, first);
         assert_eq!(commits[1].subject, "first feature commit");
+    }
+
+    #[test]
+    #[serial]
+    fn commit_options_include_body_description_when_present() {
+        let _guard = CWD_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let repo = setup_repo();
+        std::env::set_current_dir(repo.path()).unwrap();
+
+        let described = write_and_commit(
+            repo.path(),
+            "described.txt",
+            "described\n",
+            "described commit\n\nExplain why this change exists.\n\nAdd operational context.",
+        );
+        write_and_commit(repo.path(), "plain.txt", "plain\n", "plain commit");
+
+        let commits = list_branch_commits("main").unwrap();
+
+        let described_commit = commits
+            .iter()
+            .find(|commit| commit.sha == described)
+            .expect("described commit should be selectable");
+        assert_eq!(
+            described_commit.description.as_deref(),
+            Some("Explain why this change exists.\n\nAdd operational context."),
+        );
+
+        let plain_commit = commits
+            .iter()
+            .find(|commit| commit.subject == "plain commit")
+            .expect("plain commit should be selectable");
+        assert_eq!(plain_commit.description, None);
     }
 
     #[test]
