@@ -45,6 +45,7 @@ impl ReviewServer {
     pub fn start(
         initial_patch: String,
         initial_ref: String,
+        initial_source: DiffSource,
         initial_error: Option<String>,
         default_branch: String,
     ) -> Result<Self> {
@@ -73,6 +74,7 @@ impl ReviewServer {
                 tx,
                 initial_patch,
                 initial_ref,
+                initial_source,
                 initial_error,
                 default_branch,
             );
@@ -96,13 +98,14 @@ impl ReviewServer {
         tx: mpsc::Sender<FeedbackPayload>,
         initial_patch: String,
         initial_ref: String,
+        initial_source: DiffSource,
         initial_error: Option<String>,
         default_branch: String,
     ) {
         let mut current_data = build_diff_data(
             &initial_patch,
             &initial_ref,
-            &DiffSource::Uncommitted,
+            &initial_source,
             &default_branch,
             &initial_error,
         );
