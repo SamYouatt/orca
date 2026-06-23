@@ -4,7 +4,6 @@ import {
   AlertDialog,
   AlertDialogBackdrop,
   AlertDialogClose,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogPopup,
@@ -287,9 +286,6 @@ export function CritiqueCommentsPane({
               <AlertDialogTitle className="text-base font-semibold">
                 Delete comment?
               </AlertDialogTitle>
-              <AlertDialogDescription className="text-sm text-muted-foreground">
-                This removes the side-pane comment and its inline annotation.
-              </AlertDialogDescription>
             </AlertDialogHeader>
 
             {pendingDelete && (

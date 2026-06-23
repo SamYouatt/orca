@@ -84,8 +84,17 @@ function parseDiffToFiles(rawPatch: string, serverFiles: ServerFileContents[]): 
   return files;
 }
 
-function ReviewScopeTitle({ diff }: { diff: DiffData }) {
+function ReviewScopeTitle({
+  diff,
+  switching,
+  onSwitch,
+}: {
+  diff: DiffData;
+  switching: boolean;
+  onSwitch: (diffType: DiffType, commitSha?: string) => void;
+}) {
   const selectedCommit = diff.diffType === "commit" ? diff.selectedCommit : undefined;
+  const commitOptionsOldestFirst = [...(diff.commitOptions || [])].reverse();
 
   return (
     <div className="min-w-0 max-w-full">
@@ -101,9 +110,22 @@ function ReviewScopeTitle({ diff }: { diff: DiffData }) {
             <span className="h-4 w-px shrink-0 bg-border" />
             <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
               <GitCommitHorizontal className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-              <span className="truncate" title={selectedCommit.subject}>
-                {selectedCommit.subject}
-              </span>
+              <select
+                value={selectedCommit.sha}
+                disabled={switching}
+                title={selectedCommit.subject}
+                aria-label="Select commit"
+                onChange={(event) => {
+                  if (event.target.value) onSwitch("commit", event.target.value);
+                }}
+                className="min-w-0 max-w-full appearance-none truncate rounded-sm bg-transparent p-0 pr-1 text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+              >
+                {commitOptionsOldestFirst.map((commit) => (
+                  <option key={commit.sha} value={commit.sha}>
+                    {commit.subject}
+                  </option>
+                ))}
+              </select>
             </div>
           </>
         )}
@@ -402,7 +424,7 @@ export default function App() {
     <div className="h-screen flex flex-col">
       <header className="flex items-center justify-between gap-3 px-4 py-2 border-b bg-card">
         <div className="min-w-0 flex-1">
-          <ReviewScopeTitle diff={diff} />
+          <ReviewScopeTitle diff={diff} switching={switching} onSwitch={handleSwitch} />
         </div>
         <div className="flex min-w-0 items-center justify-end gap-2">
           <ViewStyleToggle current={diffStyle} onChange={setDiffStyle} />
