@@ -4,6 +4,7 @@ export interface CommitOption {
   sha: string;
   shortSha: string;
   subject: string;
+  description?: string;
 }
 
 export interface ServerFileContents {

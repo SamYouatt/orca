@@ -45,7 +45,11 @@ fn git_diff(args: &[&str]) -> Result<String, String> {
 pub fn list_branch_commits(default_branch: &str) -> Result<Vec<CommitOption>, String> {
     let base = merge_base(default_branch)?;
     let output = Command::new("git")
-        .args(["log", "--format=%H%x1f%h%x1f%s", &format!("{base}..HEAD")])
+        .args([
+            "log",
+            "--format=%H%x1f%h%x1f%s%x1f%b%x1e",
+            &format!("{base}..HEAD"),
+        ])
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -54,16 +58,27 @@ pub fn list_branch_commits(default_branch: &str) -> Result<Vec<CommitOption>, St
     }
 
     Ok(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter_map(|line| {
-            let mut parts = line.splitn(3, '\x1f');
+        .split('\x1e')
+        .filter_map(|record| {
+            let record = record.trim_matches('\n');
+            if record.is_empty() {
+                return None;
+            }
+
+            let mut parts = record.splitn(4, '\x1f');
             let sha = parts.next()?.to_string();
             let short_sha = parts.next()?.to_string();
             let subject = parts.next()?.to_string();
+            let description = parts
+                .next()
+                .map(str::trim)
+                .filter(|description| !description.is_empty())
+                .map(ToString::to_string);
             Some(CommitOption {
                 sha,
                 short_sha,
                 subject,
+                description,
             })
         })
         .collect())
