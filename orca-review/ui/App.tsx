@@ -20,7 +20,7 @@ import {
   type AnnotationBuckets,
 } from "./lib/reviewState";
 import type { Annotation, DiffData, DiffType, ServerFileContents } from "./types";
-import { GitBranch, GitCommitHorizontal } from "lucide-react";
+import { ChevronDown, GitBranch, GitCommitHorizontal } from "lucide-react";
 
 interface DiffFile {
   path: string;
@@ -110,22 +110,28 @@ function ReviewScopeTitle({
             <span className="h-4 w-px shrink-0 bg-border" />
             <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
               <GitCommitHorizontal className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-              <select
-                value={selectedCommit.sha}
-                disabled={switching}
-                title={selectedCommit.subject}
-                aria-label="Select commit"
-                onChange={(event) => {
-                  if (event.target.value) onSwitch("commit", event.target.value);
-                }}
-                className="min-w-0 max-w-full appearance-none truncate rounded-sm bg-transparent p-0 pr-1 text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
-              >
-                {commitOptionsOldestFirst.map((commit) => (
-                  <option key={commit.sha} value={commit.sha}>
-                    {commit.subject}
-                  </option>
-                ))}
-              </select>
+              <div className="relative min-w-0">
+                <select
+                  value={selectedCommit.sha}
+                  disabled={switching}
+                  title={selectedCommit.subject}
+                  aria-label="Select commit"
+                  onChange={(event) => {
+                    if (event.target.value) onSwitch("commit", event.target.value);
+                  }}
+                  className="h-7 min-w-0 max-w-full appearance-none truncate rounded-md bg-transparent py-1 pl-1.5 pr-6 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {commitOptionsOldestFirst.map((commit) => (
+                    <option key={commit.sha} value={commit.sha}>
+                      {commit.subject}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-1.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              </div>
             </div>
           </>
         )}
