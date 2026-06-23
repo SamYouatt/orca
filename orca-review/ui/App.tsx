@@ -5,17 +5,22 @@ import { ViewStyleToggle } from "./components/ViewStyleToggle";
 import { FileTree } from "./components/FileTree";
 import { DiffViewer } from "./components/DiffViewer";
 import { FeedbackBar } from "./components/FeedbackBar";
+import { CritiqueCommentsPane } from "./components/CritiqueCommentsPane";
 import { useTheme } from "./hooks/useTheme";
 import { buildFileTree, flattenTreeFiles } from "./lib/fileTree";
 import {
   annotationsForFeedback,
   annotationsForDiff,
+  createAnnotation,
+  deleteAnnotation,
+  editAnnotationText,
+  formatFeedbackMarkdown,
   rememberAnnotations,
-  reviewScopeLabel,
+  serializeFeedbackPayload,
   type AnnotationBuckets,
 } from "./lib/reviewState";
 import type { Annotation, DiffData, DiffType, ServerFileContents } from "./types";
-import { GitBranch, GitCommitHorizontal } from "lucide-react";
+import { ChevronDown, GitBranch, GitCommitHorizontal } from "lucide-react";
 
 interface DiffFile {
   path: string;
@@ -25,6 +30,22 @@ interface DiffFile {
   deletions: number;
   oldContent?: string | null;
   newContent?: string | null;
+}
+
+function parentDirectories(filePath: string): string[] {
+  const parts = filePath.split("/");
+  parts.pop();
+
+  return parts.map((_, index) => parts.slice(0, index + 1).join("/"));
+}
+
+function needsViewSwitch(diff: DiffData, annotation: Annotation): boolean {
+  const { origin } = annotation;
+  if (!origin) return false;
+  if (diff.diffType !== origin.type) return true;
+  if (origin.type !== "commit") return false;
+
+  return diff.selectedCommit?.sha !== origin.commit.sha;
 }
 
 function parseDiffToFiles(rawPatch: string, serverFiles: ServerFileContents[]): DiffFile[] {
@@ -63,8 +84,17 @@ function parseDiffToFiles(rawPatch: string, serverFiles: ServerFileContents[]): 
   return files;
 }
 
-function ReviewScopeTitle({ diff }: { diff: DiffData }) {
+function ReviewScopeTitle({
+  diff,
+  switching,
+  onSwitch,
+}: {
+  diff: DiffData;
+  switching: boolean;
+  onSwitch: (diffType: DiffType, commitSha?: string) => void;
+}) {
   const selectedCommit = diff.diffType === "commit" ? diff.selectedCommit : undefined;
+  const commitOptionsOldestFirst = [...(diff.commitOptions || [])].reverse();
 
   return (
     <div className="min-w-0 max-w-full">
@@ -80,9 +110,35 @@ function ReviewScopeTitle({ diff }: { diff: DiffData }) {
             <span className="h-4 w-px shrink-0 bg-border" />
             <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
               <GitCommitHorizontal className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-              <span className="truncate" title={selectedCommit.subject}>
-                {selectedCommit.subject}
-              </span>
+              <div
+                className={`relative inline-flex min-w-0 max-w-[56ch] items-center rounded-md py-1 pl-1.5 pr-6 transition-colors hover:bg-muted focus-within:ring-2 focus-within:ring-ring/50 ${
+                  switching ? "pointer-events-none opacity-50" : ""
+                }`}
+                title={selectedCommit.subject}
+              >
+                <span className="min-w-0 truncate text-sm text-muted-foreground">
+                  {selectedCommit.subject}
+                </span>
+                <select
+                  value={selectedCommit.sha}
+                  disabled={switching}
+                  aria-label="Select commit"
+                  onChange={(event) => {
+                    if (event.target.value) onSwitch("commit", event.target.value);
+                  }}
+                  className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 outline-none"
+                >
+                  {commitOptionsOldestFirst.map((commit) => (
+                    <option key={commit.sha} value={commit.sha}>
+                      {commit.subject}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-1.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              </div>
             </div>
           </>
         )}
@@ -100,6 +156,12 @@ export default function App() {
   const [submitted, setSubmitted] = useState(false);
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set());
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
+  const [commentsPaneOpen, setCommentsPaneOpen] = useState(
+    () => window.innerWidth >= 1024
+  );
+  const [pendingJump, setPendingJump] = useState<Annotation | null>(null);
+  const [unavailableAnnotationIds, setUnavailableAnnotationIds] = useState<Set<string>>(new Set());
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [diffStyle, setDiffStyle] = useState<"unified" | "split">(
     () => window.innerWidth >= 1400 ? "split" : "unified"
@@ -121,8 +183,8 @@ export default function App() {
     [annotationBuckets, diff]
   );
   const feedbackAnnotations = useMemo(
-    () => diff ? annotationsForFeedback(annotationBuckets, diff) : [],
-    [annotationBuckets, diff]
+    () => annotationsForFeedback(annotationBuckets),
+    [annotationBuckets]
   );
 
   useEffect(() => {
@@ -134,8 +196,10 @@ export default function App() {
   const applyDiff = useCallback((data: DiffData) => {
     setDiff(data);
     setFiles(parseDiffToFiles(data.rawPatch, data.files || []));
+    fileRefs.current.clear();
     setViewedFiles(new Set());
     setCollapsedDirs(new Set());
+    setCollapsedFiles(new Set());
     setActiveFile(null);
   }, []);
 
@@ -170,9 +234,7 @@ export default function App() {
         const next = [
           ...annotationsForDiff(prev, diff),
           {
-            ...ann,
-            id: crypto.randomUUID(),
-            reviewScope: reviewScopeLabel(diff),
+            ...createAnnotation(diff, ann, crypto.randomUUID()),
           },
         ];
         return rememberAnnotations(prev, diff, next);
@@ -185,58 +247,69 @@ export default function App() {
     if (!diff) return;
 
     setAnnotationBuckets((prev) => {
-      const next = annotationsForDiff(prev, diff).filter((a) => a.id !== id);
+      const next = deleteAnnotation(annotationsForDiff(prev, diff), id);
       return rememberAnnotations(prev, diff, next);
     });
   }, [diff]);
+
+  const handleDeleteFeedbackAnnotation = useCallback((id: string) => {
+    setAnnotationBuckets((prev) => {
+      const next: AnnotationBuckets = {};
+
+      for (const [key, bucket] of Object.entries(prev)) {
+        next[key] = deleteAnnotation(bucket, id);
+      }
+
+      return next;
+    });
+  }, []);
 
   const handleEditAnnotation = useCallback((id: string, text: string) => {
-    if (!diff) return;
-
     setAnnotationBuckets((prev) => {
-      const next = annotationsForDiff(prev, diff).map((a) => (a.id === id ? { ...a, text } : a));
-      return rememberAnnotations(prev, diff, next);
+      const next: AnnotationBuckets = {};
+
+      for (const [key, bucket] of Object.entries(prev)) {
+        next[key] = editAnnotationText(bucket, id, text);
+      }
+
+      return next;
     });
-  }, [diff]);
+  }, []);
+
+  const handleJumpToAnnotation = useCallback(
+    async (annotation: Annotation) => {
+      if (!diff || !annotation.origin) {
+        setUnavailableAnnotationIds((prev) => new Set(prev).add(annotation.id));
+        return;
+      }
+
+      setUnavailableAnnotationIds((prev) => {
+        const next = new Set(prev);
+        next.delete(annotation.id);
+        return next;
+      });
+
+      if (needsViewSwitch(diff, annotation)) {
+        await handleSwitch(
+          annotation.origin.type,
+          annotation.origin.type === "commit" ? annotation.origin.commit.sha : undefined,
+        );
+      }
+
+      setPendingJump(annotation);
+    },
+    [diff, handleSwitch]
+  );
 
   const buildMarkdown = useCallback(() => {
-    if (feedbackAnnotations.length === 0) return "Code review completed — no changes requested.";
-
-    const parts: string[] = ["# Code Review Feedback"];
-    const grouped = new Map<string, Map<string, Annotation[]>>();
-    for (const ann of feedbackAnnotations) {
-      const scope = ann.reviewScope ?? "Review";
-      const scopeGroup = grouped.get(scope) ?? new Map<string, Annotation[]>();
-      const existing = scopeGroup.get(ann.filePath) || [];
-      existing.push(ann);
-      scopeGroup.set(ann.filePath, existing);
-      grouped.set(scope, scopeGroup);
-    }
-
-    for (const [scope, filesByPath] of grouped) {
-      parts.push(`## ${scope}`);
-      for (const [filePath, fileAnns] of filesByPath) {
-        parts.push(`### ${filePath}`);
-        const sorted = [...fileAnns].sort((a, b) => a.lineStart - b.lineStart);
-        for (const ann of sorted) {
-          const range =
-            ann.lineStart === ann.lineEnd
-              ? `Line ${ann.lineStart}`
-              : `Lines ${ann.lineStart}-${ann.lineEnd}`;
-          parts.push(`#### ${range} (${ann.side})\n${ann.text}`);
-        }
-      }
-    }
-
-    parts.push("Address all feedback above.");
-    return parts.join("\n\n");
+    return formatFeedbackMarkdown(feedbackAnnotations);
   }, [feedbackAnnotations]);
 
   const handleSubmit = useCallback(async () => {
     await fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ overallComment: "", annotations: feedbackAnnotations }),
+      body: JSON.stringify(serializeFeedbackPayload("", feedbackAnnotations)),
     });
     setSubmitted(true);
   }, [feedbackAnnotations]);
@@ -248,10 +321,7 @@ export default function App() {
     await fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        overallComment: "",
-        annotations: feedbackAnnotations,
-      }),
+      body: JSON.stringify(serializeFeedbackPayload("", feedbackAnnotations)),
     });
     setSubmitted(true);
   }, [buildMarkdown, feedbackAnnotations]);
@@ -261,6 +331,58 @@ export default function App() {
     const el = fileRefs.current.get(filePath);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
+
+  useEffect(() => {
+    if (!pendingJump) return;
+
+    if (!orderedFiles.some((file) => file.path === pendingJump.filePath)) {
+      setUnavailableAnnotationIds((prev) => new Set(prev).add(pendingJump.id));
+      setPendingJump(null);
+      return;
+    }
+
+    setActiveFile(pendingJump.filePath);
+    setCollapsedDirs((prev) => {
+      const next = new Set(prev);
+      for (const dir of parentDirectories(pendingJump.filePath)) {
+        next.delete(dir);
+      }
+      return next;
+    });
+    setCollapsedFiles((prev) => {
+      const next = new Set(prev);
+      next.delete(pendingJump.filePath);
+      return next;
+    });
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const fileElement = fileRefs.current.get(pendingJump.filePath);
+        if (!fileElement) {
+          setUnavailableAnnotationIds((prev) => new Set(prev).add(pendingJump.id));
+          return;
+        }
+
+        const annotationElement = fileElement.querySelector<HTMLElement>(
+          `[data-annotation-id="${pendingJump.id}"]`,
+        );
+
+        if (annotationElement) {
+          annotationElement.scrollIntoView({ behavior: "smooth", block: "center" });
+          setUnavailableAnnotationIds((prev) => {
+            const next = new Set(prev);
+            next.delete(pendingJump.id);
+            return next;
+          });
+        } else {
+          fileElement.scrollIntoView({ behavior: "smooth", block: "start" });
+          setUnavailableAnnotationIds((prev) => new Set(prev).add(pendingJump.id));
+        }
+      });
+    });
+
+    setPendingJump(null);
+  }, [orderedFiles, pendingJump]);
 
   useEffect(() => {
     const handleGlobalKeys = (e: KeyboardEvent) => {
@@ -315,7 +437,7 @@ export default function App() {
     <div className="h-screen flex flex-col">
       <header className="flex items-center justify-between gap-3 px-4 py-2 border-b bg-card">
         <div className="min-w-0 flex-1">
-          <ReviewScopeTitle diff={diff} />
+          <ReviewScopeTitle diff={diff} switching={switching} onSwitch={handleSwitch} />
         </div>
         <div className="flex min-w-0 items-center justify-end gap-2">
           <ViewStyleToggle current={diffStyle} onChange={setDiffStyle} />
@@ -330,8 +452,8 @@ export default function App() {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <aside className="w-64 border-r bg-card overflow-y-auto shrink-0">
+      <div className="relative flex flex-1 overflow-hidden">
+        <aside className="hidden w-64 shrink-0 overflow-y-auto border-r bg-card lg:block">
           <FileTree
             tree={tree}
             activeFile={activeFile}
@@ -349,7 +471,7 @@ export default function App() {
           />
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-4 bg-muted">
+        <main className="min-w-0 flex-1 overflow-y-auto p-4 bg-muted">
           {orderedFiles.length === 0 ? (
             <div className="text-muted-foreground text-center mt-20">
               No changes to review.
@@ -375,11 +497,20 @@ export default function App() {
                     diffStyle={diffStyle}
                     themeType={theme}
                     viewed={viewedFiles.has(file.path)}
+                    collapsed={collapsedFiles.has(file.path)}
                     onToggleViewed={() =>
                       setViewedFiles((prev) => {
                         const next = new Set(prev);
                         if (next.has(file.path)) next.delete(file.path);
                         else next.add(file.path);
+                        return next;
+                      })
+                    }
+                    onCollapsedChange={(collapsed) =>
+                      setCollapsedFiles((prev) => {
+                        const next = new Set(prev);
+                        if (collapsed) next.add(file.path);
+                        else next.delete(file.path);
                         return next;
                       })
                     }
@@ -394,6 +525,16 @@ export default function App() {
             </div>
           )}
         </main>
+
+        <CritiqueCommentsPane
+          annotations={feedbackAnnotations}
+          open={commentsPaneOpen}
+          unavailableAnnotationIds={unavailableAnnotationIds}
+          onOpenChange={setCommentsPaneOpen}
+          onDeleteAnnotation={handleDeleteFeedbackAnnotation}
+          onEditAnnotation={handleEditAnnotation}
+          onJumpToAnnotation={handleJumpToAnnotation}
+        />
       </div>
 
       <FeedbackBar

@@ -95,6 +95,7 @@ pub struct Annotation {
     pub line_start: u32,
     pub line_end: u32,
     pub text: String,
+    #[allow(dead_code)]
     pub review_scope: Option<String>,
 }
 

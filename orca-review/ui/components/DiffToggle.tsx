@@ -19,13 +19,7 @@ export function DiffToggle({
   switching,
   onSwitch,
 }: DiffToggleProps) {
-  const selectedSha = selectedCommit?.sha ?? "";
-  const commitSelectTitle =
-    selectedCommit
-      ? selectedCommit.subject
-      : "Select a commit";
   const commitOptionsOldestFirst = [...commitOptions].reverse();
-  const showCommitSelect = current === "commit" && commitOptions.length > 0;
 
   return (
     <div className="flex items-center gap-2 min-w-0">
@@ -59,25 +53,6 @@ export function DiffToggle({
           Commit
         </ToggleGroupItem>
       </ToggleGroup>
-      {showCommitSelect && (
-        <select
-          value={selectedSha}
-          disabled={switching}
-          title={commitSelectTitle}
-          aria-label="Select commit"
-          onChange={(event) => {
-            if (event.target.value) onSwitch("commit", event.target.value);
-          }}
-          className="h-7 max-w-80 min-w-44 rounded-lg border border-border bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
-        >
-          {!selectedCommit && <option value="">Select commit</option>}
-          {commitOptionsOldestFirst.map((commit) => (
-            <option key={commit.sha} value={commit.sha}>
-              {commit.subject}
-            </option>
-          ))}
-        </select>
-      )}
     </div>
   );
 }
