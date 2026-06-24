@@ -4,15 +4,30 @@ use super::types::{CommitOption, DiffSource, FileContents};
 
 pub fn get_default_branch() -> String {
     if let Ok(output) = Command::new("git")
-        .args(["symbolic-ref", "refs/remotes/origin/HEAD"])
+        .args(["symbolic-ref", "refs/remotes/origin/HEAD", "--short"])
         .output()
     {
         let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if !s.is_empty() {
-            return s.replace("refs/remotes/origin/", "");
+            return s;
         }
     }
+
+    for candidate in ["origin/main", "origin/master"] {
+        if ref_exists(candidate) {
+            return candidate.to_string();
+        }
+    }
+
     "main".to_string()
+}
+
+fn ref_exists(ref_name: &str) -> bool {
+    Command::new("git")
+        .args(["rev-parse", "--verify", ref_name])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
 }
 
 pub fn get_current_branch() -> String {
@@ -334,6 +349,94 @@ mod tests {
         assert_eq!(commits[0].subject, "second feature commit");
         assert_eq!(commits[1].sha, first);
         assert_eq!(commits[1].subject, "first feature commit");
+    }
+
+    #[test]
+    #[serial]
+    fn commit_options_use_remote_default_branch_when_local_default_is_stale() {
+        let _guard = CWD_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let repo = setup_repo();
+        std::env::set_current_dir(repo.path()).unwrap();
+
+        run_git(repo.path(), &["checkout", "main"]);
+        let local_main = run_git(repo.path(), &["rev-parse", "HEAD"]);
+        let remote_main_commit = write_and_commit(
+            repo.path(),
+            "remote-main.txt",
+            "remote main\n",
+            "remote main commit",
+        );
+        run_git(
+            repo.path(),
+            &[
+                "update-ref",
+                "refs/remotes/origin/main",
+                &remote_main_commit,
+            ],
+        );
+        run_git(
+            repo.path(),
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+            ],
+        );
+        run_git(repo.path(), &["checkout", "-b", "rebased-feature"]);
+        let feature_commit =
+            write_and_commit(repo.path(), "feature.txt", "feature\n", "feature commit");
+        run_git(repo.path(), &["update-ref", "refs/heads/main", &local_main]);
+
+        let default_branch = get_default_branch();
+        let commits = list_branch_commits(&default_branch).unwrap();
+
+        assert_eq!(default_branch, "origin/main");
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0].sha, feature_commit);
+        assert_eq!(commits[0].subject, "feature commit");
+    }
+
+    #[test]
+    #[serial]
+    fn commit_options_fall_back_to_remote_ref_when_origin_head_is_missing() {
+        let _guard = CWD_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let repo = setup_repo();
+        std::env::set_current_dir(repo.path()).unwrap();
+
+        run_git(repo.path(), &["checkout", "main"]);
+        let local_main = run_git(repo.path(), &["rev-parse", "HEAD"]);
+        let remote_main_commit = write_and_commit(
+            repo.path(),
+            "remote-main.txt",
+            "remote main\n",
+            "remote main commit",
+        );
+        run_git(
+            repo.path(),
+            &[
+                "update-ref",
+                "refs/remotes/origin/main",
+                &remote_main_commit,
+            ],
+        );
+        run_git(repo.path(), &["checkout", "-b", "rebased-feature"]);
+        let feature_commit =
+            write_and_commit(repo.path(), "feature.txt", "feature\n", "feature commit");
+        run_git(repo.path(), &["update-ref", "refs/heads/main", &local_main]);
+
+        let default_branch = get_default_branch();
+        let commits = list_branch_commits(&default_branch).unwrap();
+
+        assert_eq!(default_branch, "origin/main");
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0].sha, feature_commit);
+        assert_eq!(commits[0].subject, "feature commit");
     }
 
     #[test]
