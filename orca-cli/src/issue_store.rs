@@ -89,11 +89,11 @@ pub fn list(
 }
 
 pub fn block(base_dir: &Path, repo: Option<&Path>, id: &str, blockers: &[&str]) -> Result<()> {
-    mutate_blockers(base_dir, repo, id, blockers, Mutation::Add)
+    mutate_blockers(base_dir, repo, id, blockers, BlockerMutation::Add)
 }
 
 pub fn unblock(base_dir: &Path, repo: Option<&Path>, id: &str, blockers: &[&str]) -> Result<()> {
-    mutate_blockers(base_dir, repo, id, blockers, Mutation::Remove)
+    mutate_blockers(base_dir, repo, id, blockers, BlockerMutation::Remove)
 }
 
 pub fn update(base_dir: &Path, repo: Option<&Path>, id: &str, update: IssueUpdate) -> Result<()> {
@@ -160,18 +160,7 @@ pub fn update(base_dir: &Path, repo: Option<&Path>, id: &str, update: IssueUpdat
         )?;
     }
     if blockers_changed && let Some(blockers) = desired_blockers {
-        tx.execute(
-            "DELETE FROM issue_dependencies
-             WHERE repo_path = ?1 AND issue_id = ?2",
-            params![repo_path, issue_id.as_u64()],
-        )?;
-        for blocker_id in blockers {
-            tx.execute(
-                "INSERT INTO issue_dependencies (repo_path, issue_id, blocker_id)
-                 VALUES (?1, ?2, ?3)",
-                params![repo_path, issue_id.as_u64(), blocker_id.as_u64()],
-            )?;
-        }
+        replace_blockers(&tx, &repo_path, issue_id, &blockers)?;
     }
 
     tx.commit()?;
@@ -187,13 +176,20 @@ fn desired_blockers(
 ) -> Result<Option<Vec<IssueId>>> {
     let mut desired = match update {
         BlockerUpdate::Unchanged => return Ok(None),
-        BlockerUpdate::Replace(blockers) => parse_blockers(blockers)?,
+        BlockerUpdate::Replace(blockers) => {
+            let blockers = parse_blockers(blockers)?;
+            validate_blocker_ids(tx, repo_path, issue_id, &blockers)?;
+            blockers
+        }
         BlockerUpdate::Add(blockers) => {
             if blockers.is_empty() {
                 bail!("at least one blocker id is required");
             }
+            let additions = parse_blockers(blockers)?;
+            validate_blocker_ids(tx, repo_path, issue_id, &additions)?;
+
             let mut desired = current.to_vec();
-            for blocker_id in parse_blockers(blockers)? {
+            for blocker_id in additions {
                 if desired.contains(&blocker_id) {
                     bail!("issue {blocker_id} is already a blocker");
                 }
@@ -206,6 +202,8 @@ fn desired_blockers(
                 bail!("at least one blocker id is required");
             }
             let removals = parse_blockers(blockers)?;
+            validate_blocker_ids(tx, repo_path, issue_id, &removals)?;
+
             let mut desired = current.to_vec();
             for blocker_id in removals {
                 let Some(index) = desired.iter().position(|id| *id == blocker_id) else {
@@ -221,10 +219,6 @@ fn desired_blockers(
     desired.dedup();
 
     for blocker_id in &desired {
-        if *blocker_id == issue_id {
-            bail!("issue {issue_id} cannot block itself");
-        }
-        ensure_issue_exists(tx, repo_path, *blocker_id)?;
         if creates_cycle(tx, repo_path, issue_id, *blocker_id)? {
             bail!(
                 "adding blocker {blocker_id} to issue {issue_id} would create a dependency cycle"
@@ -233,6 +227,21 @@ fn desired_blockers(
     }
 
     Ok(Some(desired))
+}
+
+fn validate_blocker_ids(
+    tx: &Transaction<'_>,
+    repo_path: &str,
+    issue_id: IssueId,
+    blockers: &[IssueId],
+) -> Result<()> {
+    for blocker_id in blockers {
+        if *blocker_id == issue_id {
+            bail!("issue {issue_id} cannot block itself");
+        }
+        ensure_issue_exists(tx, repo_path, *blocker_id)?;
+    }
+    Ok(())
 }
 
 fn parse_blockers(blockers: &[String]) -> Result<Vec<IssueId>> {
@@ -281,7 +290,7 @@ fn mutate_blockers(
     repo: Option<&Path>,
     id: &str,
     blockers: &[&str],
-    mutation: Mutation,
+    mutation: BlockerMutation,
 ) -> Result<()> {
     if blockers.is_empty() {
         bail!("at least one blocker id is required");
@@ -289,48 +298,50 @@ fn mutate_blockers(
 
     let repo_path = resolve_repo(repo)?.display().to_string();
     let issue_id = IssueId::parse(id)?;
-    let blocker_ids = blockers
+    let blockers = blockers
         .iter()
-        .map(|blocker| IssueId::parse(blocker))
-        .collect::<Result<Vec<_>>>()?;
+        .map(|blocker| (*blocker).to_string())
+        .collect::<Vec<_>>();
+    parse_blockers(&blockers)?;
+
     let conn = open_store(base_dir)?;
     let tx = conn.unchecked_transaction()?;
 
     ensure_issue_exists(&tx, &repo_path, issue_id)?;
-    for blocker_id in &blocker_ids {
-        if *blocker_id == issue_id {
-            bail!("issue {issue_id} cannot block itself");
-        }
-        ensure_issue_exists(&tx, &repo_path, *blocker_id)?;
-    }
+    let current = blocker_ids_in_tx(&tx, &repo_path, issue_id)?;
+    let update = match mutation {
+        BlockerMutation::Add => BlockerUpdate::Add(blockers),
+        BlockerMutation::Remove => BlockerUpdate::Remove(blockers),
+    };
+    let Some(desired_blockers) = desired_blockers(&tx, &repo_path, issue_id, &current, &update)?
+    else {
+        return Ok(());
+    };
 
-    match mutation {
-        Mutation::Add => {
-            for blocker_id in blocker_ids {
-                if creates_cycle(&tx, &repo_path, issue_id, blocker_id)? {
-                    bail!(
-                        "adding blocker {blocker_id} to issue {issue_id} would create a dependency cycle"
-                    );
-                }
-                tx.execute(
-                    "INSERT OR IGNORE INTO issue_dependencies (repo_path, issue_id, blocker_id)
-                     VALUES (?1, ?2, ?3)",
-                    params![repo_path, issue_id.as_u64(), blocker_id.as_u64()],
-                )?;
-            }
-        }
-        Mutation::Remove => {
-            for blocker_id in blocker_ids {
-                tx.execute(
-                    "DELETE FROM issue_dependencies
-                     WHERE repo_path = ?1 AND issue_id = ?2 AND blocker_id = ?3",
-                    params![repo_path, issue_id.as_u64(), blocker_id.as_u64()],
-                )?;
-            }
-        }
-    }
+    replace_blockers(&tx, &repo_path, issue_id, &desired_blockers)?;
 
     tx.commit()?;
+    Ok(())
+}
+
+fn replace_blockers(
+    tx: &Transaction<'_>,
+    repo_path: &str,
+    issue_id: IssueId,
+    blockers: &[IssueId],
+) -> Result<()> {
+    tx.execute(
+        "DELETE FROM issue_dependencies
+         WHERE repo_path = ?1 AND issue_id = ?2",
+        params![repo_path, issue_id.as_u64()],
+    )?;
+    for blocker_id in blockers {
+        tx.execute(
+            "INSERT INTO issue_dependencies (repo_path, issue_id, blocker_id)
+             VALUES (?1, ?2, ?3)",
+            params![repo_path, issue_id.as_u64(), blocker_id.as_u64()],
+        )?;
+    }
     Ok(())
 }
 
@@ -487,7 +498,7 @@ fn creates_cycle(
 }
 
 #[derive(Clone, Copy)]
-enum Mutation {
+enum BlockerMutation {
     Add,
     Remove,
 }
