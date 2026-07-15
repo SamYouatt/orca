@@ -4,17 +4,21 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 let options: Record<string, unknown> | undefined;
 let className: string | undefined;
+let renderCustomHeader: (() => React.ReactNode) | undefined;
 
 mock.module("@pierre/diffs/react", () => ({
   FileDiff: ({
     className: fileDiffClassName,
     options: fileDiffOptions,
+    renderCustomHeader: fileDiffRenderCustomHeader,
   }: {
     className: string;
     options: Record<string, unknown>;
+    renderCustomHeader: () => React.ReactNode;
   }) => {
     className = fileDiffClassName;
     options = fileDiffOptions;
+    renderCustomHeader = fileDiffRenderCustomHeader;
     return <div />;
   },
 }));
@@ -44,11 +48,8 @@ describe("DiffViewer", () => {
     expect(options?.unsafeCSS).toContain("position: sticky");
     expect(options?.unsafeCSS).toContain("top: -1rem");
     expect(options?.unsafeCSS).toContain("z-index: 4");
-    expect(options?.unsafeCSS).toContain("background: white");
-    expect(options?.unsafeCSS).toContain("border-radius: 0.5rem 0.5rem 0 0");
-    expect(options?.unsafeCSS).toContain("[data-diffs-header]::before");
-    expect(options?.unsafeCSS).toContain("background: oklch(0.97 0 0)");
-    expect(options?.unsafeCSS).toContain("border-radius: 0 0 0.5rem 0.5rem");
+    expect(options?.unsafeCSS).not.toContain("background:");
+    expect(renderCustomHeader).toBeFunction();
     expect(className).not.toContain("overflow-hidden");
   });
 });
