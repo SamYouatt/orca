@@ -318,10 +318,20 @@ export function DiffViewer({
         unsafeCSS: `
           [data-diffs-header] {
             position: sticky;
-            top: 0;
+            top: -1rem;
             z-index: 4;
             background: var(--diffs-bg);
             border-radius: 0.5rem 0.5rem 0 0;
+            isolation: isolate;
+          }
+
+          [data-diffs-header]::before {
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            content: "";
+            background: var(--muted);
           }
 
           pre {

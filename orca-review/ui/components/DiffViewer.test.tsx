@@ -42,9 +42,12 @@ describe("DiffViewer", () => {
 
     expect(options?.unsafeCSS).toContain("[data-diffs-header]");
     expect(options?.unsafeCSS).toContain("position: sticky");
+    expect(options?.unsafeCSS).toContain("top: -1rem");
     expect(options?.unsafeCSS).toContain("z-index: 4");
     expect(options?.unsafeCSS).toContain("background: var(--diffs-bg)");
     expect(options?.unsafeCSS).toContain("border-radius: 0.5rem 0.5rem 0 0");
+    expect(options?.unsafeCSS).toContain("[data-diffs-header]::before");
+    expect(options?.unsafeCSS).toContain("background: var(--muted)");
     expect(options?.unsafeCSS).toContain("border-radius: 0 0 0.5rem 0.5rem");
     expect(className).not.toContain("overflow-hidden");
   });
