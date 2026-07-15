@@ -320,7 +320,7 @@ export function DiffViewer({
             position: sticky;
             top: -1rem;
             z-index: 4;
-            background: var(--card);
+            background: ${themeType === "dark" ? "oklch(0.205 0 0)" : "white"};
             border-radius: 0.5rem 0.5rem 0 0;
             isolation: isolate;
           }
@@ -331,7 +331,7 @@ export function DiffViewer({
             z-index: -1;
             pointer-events: none;
             content: "";
-            background: var(--muted);
+            background: ${themeType === "dark" ? "oklch(0.269 0 0)" : "oklch(0.97 0 0)"};
           }
 
           pre {
