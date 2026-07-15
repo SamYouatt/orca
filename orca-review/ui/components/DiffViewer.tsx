@@ -320,7 +320,6 @@ export function DiffViewer({
             position: sticky;
             top: -1rem;
             z-index: 4;
-            background: Canvas;
             border-radius: 0.5rem 0.5rem 0 0;
             isolation: isolate;
           }
