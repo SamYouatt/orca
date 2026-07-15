@@ -305,7 +305,7 @@ export function DiffViewer({
 
   return (
     <FileDiff
-      className="overflow-hidden rounded-lg border"
+      className="rounded-lg border"
       fileDiff={fileDiff}
       options={{
         themeType,
@@ -315,6 +315,19 @@ export function DiffViewer({
         hunkSeparators: "line-info",
         expansionLineCount: 20,
         collapsed,
+        unsafeCSS: `
+          [data-diffs-header] {
+            position: sticky;
+            top: 0;
+            z-index: 4;
+            background: var(--diffs-bg);
+            border-radius: 0.5rem 0.5rem 0 0;
+          }
+
+          pre {
+            border-radius: 0 0 0.5rem 0.5rem;
+          }
+        `,
         onLineSelectionEnd: handleLineSelectionEnd,
       }}
       lineAnnotations={allAnnotations}
