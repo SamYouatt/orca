@@ -303,9 +303,12 @@ export function DiffViewer({
     onCollapsedChange(!collapsed);
   }, [collapsed, onCollapsedChange, onToggleViewed]);
 
+  const additions = fileDiff.hunks.reduce((count, hunk) => count + hunk.additionLines, 0);
+  const deletions = fileDiff.hunks.reduce((count, hunk) => count + hunk.deletionLines, 0);
+
   return (
     <FileDiff
-      className="overflow-hidden rounded-lg border"
+      className="rounded-lg border"
       fileDiff={fileDiff}
       options={{
         themeType,
@@ -315,43 +318,45 @@ export function DiffViewer({
         hunkSeparators: "line-info",
         expansionLineCount: 20,
         collapsed,
+        unsafeCSS: `
+          [data-diffs-header] {
+            position: sticky;
+            top: -1rem;
+            z-index: 4;
+          }
+        `,
         onLineSelectionEnd: handleLineSelectionEnd,
       }}
       lineAnnotations={allAnnotations}
       selectedLines={pendingSelection ?? null}
       renderAnnotation={renderAnnotationWithPending}
-
-      renderHeaderPrefix={() => (
-        <button
-          type="button"
-          onClick={() => onCollapsedChange(!collapsed)}
-          aria-label={collapsed ? "Expand file" : "Collapse file"}
-          className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          style={{ marginLeft: -5 }}
-        >
-          <IconChevronSm
-            className={`transition-transform ${collapsed ? "-rotate-90" : ""}`}
-          />
-        </button>
-      )}
-      renderHeaderMetadata={() => (
-        <button
-          type="button"
-          onClick={handleToggleViewed}
-          aria-pressed={viewed}
-          className={`flex items-center gap-1.5 rounded-md border py-1 pr-2 pl-1 text-xs transition-colors ${
-            viewed
-              ? "border-blue-400/50 bg-blue-500/20 text-blue-700 dark:text-blue-100"
-              : "border-muted-foreground/20 bg-transparent text-muted-foreground hover:border-muted-foreground/35 hover:text-foreground"
-          }`}
-        >
-          {viewed ? (
-            <IconCheckboxFill className="text-blue-400" />
-          ) : (
-            <IconSquircleLg className="opacity-50" />
-          )}
-          Viewed
-        </button>
+      renderCustomHeader={() => (
+        <div className="flex items-center gap-2 rounded-t-lg bg-card px-3 py-2 font-sans text-sm text-foreground">
+          <button
+            type="button"
+            onClick={() => onCollapsedChange(!collapsed)}
+            aria-label={collapsed ? "Expand file" : "Collapse file"}
+            className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <IconChevronSm className={`transition-transform ${collapsed ? "-rotate-90" : ""}`} />
+          </button>
+          <span className="min-w-0 flex-1 truncate">{filePath}</span>
+          {deletions > 0 && <span className="text-red-500">-{deletions}</span>}
+          {additions > 0 && <span className="text-emerald-600">+{additions}</span>}
+          <button
+            type="button"
+            onClick={handleToggleViewed}
+            aria-pressed={viewed}
+            className={`flex items-center gap-1.5 rounded-md border py-1 pr-2 pl-1 text-xs transition-colors ${
+              viewed
+                ? "border-blue-400/50 bg-blue-500/20 text-blue-700 dark:text-blue-100"
+                : "border-muted-foreground/20 bg-transparent text-muted-foreground hover:border-muted-foreground/35 hover:text-foreground"
+            }`}
+          >
+            {viewed ? <IconCheckboxFill className="text-blue-400" /> : <IconSquircleLg className="opacity-50" />}
+            Viewed
+          </button>
+        </div>
       )}
     />
   );
